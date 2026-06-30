@@ -44,4 +44,15 @@ class TypeChart {
     if (value == null) throw MissingChartEntry(attacking, defending);
     return value;
   }
+
+  /// The distinct attacking slugs present in this chart — the engine's attacking-type
+  /// UNIVERSE, derived from the injected data rather than a hand-listed 18 slugs (AD-2).
+  ///
+  /// `rank(opponentTyping, chart, sortMode)` (Story 2.4) and `candidateAnswers` (Story 2.3)
+  /// receive ONLY the chart, so it must be the single source of "all attacking types": for
+  /// the dense 324-row bundled chart this yields the 18 canonical types; for a sparse test
+  /// fixture, exactly the attacking slugs present. A read-only `Set`, mirroring the
+  /// unmodifiable posture of `_entries` — no caching machinery (NFR6).
+  Set<String> get attackingTypes =>
+      {for (final key in _entries.keys) key.$1};
 }
