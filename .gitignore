@@ -3,6 +3,13 @@
 *.log
 *.pyc
 *.swp
+
+# Prebake network cache — local artifact, never committed (Story 1.3, AD-8).
+# Note: the GENERATED assets (assets/db/foresight.db, assets/sprites/*.png) ARE
+# committed so a clone builds offline without re-running the network prebake.
+prebake/.cache/
+__pycache__/
+.pytest_cache/
 .DS_Store
 .atom/
 .build/
