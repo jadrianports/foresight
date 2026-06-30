@@ -1,0 +1,83 @@
+import 'package:flutter/material.dart';
+
+/// The hard-edged "Cartridge physics" tokens: offset block-shadows, ink
+/// borders, square corners, the 4px spacing scale, and the pixelated-sprite
+/// rendering convention. These are reusable value producers (not widgets —
+/// NFR6) that the Epic 3/4 components consume to stay visually consistent.
+///
+/// The block-shadow rule (`Nx Ny 0`, ZERO blur, ink/shadow color) is the
+/// non-negotiable core of the Cartridge identity — never a soft/blurred/glow/
+/// gradient Material shadow (DESIGN elevation).
+class CartridgePhysics {
+  CartridgePhysics._();
+
+  // ----- block-shadow offsets (DESIGN elevation) -----
+
+  /// Standard raised surface: cards, rows, search bar, sort toggle.
+  static const Offset offsetStandard = Offset(4, 4);
+
+  /// Small elements: chips, badges.
+  static const Offset offsetSmall = Offset(2, 2);
+
+  /// Back chevron.
+  static const Offset offsetChevron = Offset(3, 3);
+
+  /// "Loud" surfaces that must sit visibly higher: the RISKY row + honest banner.
+  static const Offset offsetLoud = Offset(5, 5);
+
+  /// A single hard offset block-shadow in [shadow] with **zero blur**. Pass the
+  /// theme's `CartridgeColors.shadow`. This is the ONLY shadow shape the design
+  /// permits — never set `blurRadius`/`spreadRadius` to soften it.
+  static BoxShadow cartridgeShadow(
+    Color shadow, {
+    Offset offset = offsetStandard,
+  }) {
+    return BoxShadow(
+      color: shadow,
+      offset: offset,
+      blurRadius: 0,
+      spreadRadius: 0,
+    );
+  }
+
+  // ----- borders (DESIGN shapes) -----
+
+  /// Standard ink border width.
+  static const double borderWidth = 3;
+
+  /// Emphasised border width — the RISKY row + honest banner only.
+  static const double borderWidthRisky = 4;
+
+  /// A square ink (or tier) border in [color]. Defaults to the 3px hairline;
+  /// pass [width] = [borderWidthRisky] for the RISKY treatment.
+  static Border cartridgeBorder(Color color, {double width = borderWidth}) {
+    return Border.all(color: color, width: width);
+  }
+
+  // ----- corners (DESIGN rounded) -----
+
+  /// Frames, cards, rows, search bar, sort toggle, buttons — hard square.
+  static const double radiusDefault = 0;
+
+  /// Sprite tiles only — the single permitted softening.
+  static const double radiusTile = 2;
+
+  /// Small-element softening (alias of the tile radius).
+  static const double radiusSm = 2;
+
+  // ----- spacing (DESIGN spacing — 4px base scale, theme-independent) -----
+
+  static const double s1 = 4;
+  static const double s2 = 8;
+  static const double s3 = 12;
+  static const double s4 = 16;
+  static const double s5 = 22;
+  static const double s6 = 36;
+
+  // ----- sprites (DESIGN shapes "image-rendering: pixelated") -----
+
+  /// Pixel-art sprites render with NO smoothing — Flutter's equivalent of CSS
+  /// `image-rendering: pixelated`. Recorded here for Epic 3 (`Story 3.1`) to
+  /// apply on every sprite `Image`; no sprite is rendered in this story.
+  static const FilterQuality spriteFilterQuality = FilterQuality.none;
+}

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-/// Placeholder root for the scaffold (Story 1.1). Proves the project builds and the
-/// two bundled fonts render fully offline. Real theming (Story 1.5) and screens
-/// (Epic 3+) replace this — keep it deliberately minimal.
+import 'theme/cartridge_colors.dart';
+import 'theme/cartridge_theme.dart';
+import 'theme/cartridge_typography.dart';
+
+/// Placeholder root for the scaffold (Story 1.1), now dressed in the Cartridge
+/// theme (Story 1.5). Proves the project builds, the two bundled fonts render
+/// fully offline, and both light/dark themes apply via OS-follow. Real screens
+/// (Epic 3+) replace `_ScaffoldCheckScreen` — keep it deliberately minimal.
 class ForesightApp extends StatelessWidget {
   const ForesightApp({super.key, this.counts});
 
@@ -17,6 +21,12 @@ class ForesightApp extends StatelessWidget {
     return MaterialApp(
       title: 'Foresight',
       debugShowCheckedModeBanner: false,
+      // OS-follow at full light/dark parity (AC#4). The manual System/Light/Dark
+      // override is Epic 4 (SettingsController via shared_preferences) — system
+      // is correct and forward-compatible here.
+      theme: buildLightTheme(),
+      darkTheme: buildDarkTheme(),
+      themeMode: ThemeMode.system,
       home: _ScaffoldCheckScreen(counts: counts),
     );
   }
@@ -29,8 +39,10 @@ class _ScaffoldCheckScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Display/accent role → Press Start 2P. Body/data role → Nunito.
-    // Both come from the bundled assets (allowRuntimeFetching=false in main()).
+    // All styling now flows through the theme (AC#6: no inline GoogleFonts.* that
+    // bypass it). The wordmark is the display role; sublines are the body roles.
+    // Color comes from the brightness-correct CartridgeColors at the use-site.
+    final ink = Theme.of(context).extension<CartridgeColors>()!.ink;
     return Scaffold(
       body: Center(
         child: Column(
@@ -38,12 +50,12 @@ class _ScaffoldCheckScreen extends StatelessWidget {
           children: [
             Text(
               'FORESIGHT',
-              style: GoogleFonts.pressStart2p(fontSize: 22, height: 1.1),
+              style: CartridgeTypography.appTitle.copyWith(color: ink),
             ),
             const SizedBox(height: 20),
             Text(
               'Scaffold online — fonts bundled, offline.',
-              style: GoogleFonts.nunito(fontSize: 15, fontWeight: FontWeight.w700),
+              style: CartridgeTypography.body.copyWith(color: ink),
             ),
             // Temporary AC#5 proof: shows the bundled DB opened and read fully offline.
             // Real screens are Epic 3 — this line goes away then.
@@ -51,7 +63,7 @@ class _ScaffoldCheckScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 '${counts!.pokemon} Pokémon · ${counts!.chart} chart rows',
-                style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.w400),
+                style: CartridgeTypography.bodySm.copyWith(color: ink),
               ),
             ],
           ],
