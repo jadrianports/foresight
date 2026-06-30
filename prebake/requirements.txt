@@ -1,0 +1,11 @@
+# Foresight prebake — pinned dev-only deps (AD-8). The prebake is the ONLY unit that
+# touches the network; the Flutter app never does (AD-1).
+#
+# `requests` is the single third-party dependency. Everything else the prebake needs —
+# sqlite3 (DB write), hashlib (schema-version hash), json, pathlib — is Python stdlib.
+# We deliberately add NO HTTP-cache library: the prebake keeps its own tiny on-disk JSON
+# cache under prebake/.cache/ to respect PokeAPI fair-use on re-runs (project-context
+# "Regenerating data").
+#
+# Requires Python 3.12+ (per ARCHITECTURE-SPINE Stack).
+requests==2.34.2
