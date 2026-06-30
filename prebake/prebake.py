@@ -200,16 +200,25 @@ class PokeApiClient:
 
     def get_json(self, url: str) -> dict:
         """Cached GET. A re-run reads the on-disk cache and does NOT re-hit the network
-        unless the entry is missing (idempotence; PokeAPI fair-use)."""
+        unless the entry is missing (idempotence; PokeAPI fair-use). A cache entry left
+        truncated by an interrupted prior run (partial write) is treated as missing and
+        re-fetched rather than wedging the run on a JSONDecodeError."""
         cf = self._cache_file(url)
         if cf.exists():
-            return json.loads(cf.read_text(encoding="utf-8"))
+            try:
+                return json.loads(cf.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                # Corrupt/truncated cache (e.g. crash mid-write) — heal by re-fetching.
+                cf.unlink()
         if self.polite_delay:
             time.sleep(self.polite_delay)
         resp = self.session.get(url, timeout=60)
         resp.raise_for_status()
         data = resp.json()
-        cf.write_text(json.dumps(data), encoding="utf-8")
+        # Atomic write (temp + replace) so an interrupted run can't leave truncated JSON.
+        tmp = cf.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data), encoding="utf-8")
+        tmp.replace(cf)
         self.network_hits += 1
         return data
 
@@ -231,7 +240,11 @@ class PokeApiClient:
         if not content:
             raise ValueError(f"empty sprite body from {url}")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(content)
+        # Atomic write (temp + replace): a run killed mid-write must not leave a non-empty
+        # but truncated PNG that the size>0 skip-gate would then trust forever.
+        tmp = dest.with_suffix(".png.tmp")
+        tmp.write_bytes(content)
+        tmp.replace(dest)
         self.network_hits += 1
 
 
@@ -280,9 +293,15 @@ def gather_pokemon(client: PokeApiClient, limit: int | None = None) -> tuple[lis
             poke = client.get_resource("pokemon", v["pokemon"]["name"])
             varieties.append((bool(v["is_default"]), poke))
 
-        base = next((p for is_def, p in varieties if is_def), None)
-        if base is None:
-            raise ValueError(f"species {species['name']} has no is_default variety")
+        defaults = [p for is_def, p in varieties if is_def]
+        if len(defaults) != 1:
+            # Exactly one base form per species is the PokeAPI invariant. Zero or two
+            # would silently pick a wrong base_key and mis-skip a typing-distinct form
+            # (silently-wrong data, AD-7) — fail loud instead.
+            raise ValueError(
+                f"species {species['name']} has {len(defaults)} is_default varieties — expected 1"
+            )
+        base = defaults[0]
         base_key = types_key(base["types"])
 
         for is_default, poke in varieties:
@@ -303,18 +322,43 @@ def gather_pokemon(client: PokeApiClient, limit: int | None = None) -> tuple[lis
             if ntypes not in (1, 2):
                 raise ValueError(f"{slug} has {ntypes} types {this_key} — expected 1 or 2")
 
+            # Slots must be the distinct set {1} or {1,2}. Duplicate-slot upstream data
+            # would otherwise pass the count check above and only surface as a
+            # pokemon_types PK IntegrityError mid-write — fail loud here instead (AD-7).
+            otypes = ordered_types(poke["types"])
+            slots = [slot for slot, _ in otypes]
+            if slots != [1] and slots != [1, 2]:
+                raise ValueError(f"{slug} has non-canonical type slots {slots} — expected [1] or [1,2]")
+
             rows.append(PokemonRow(
                 id=poke["id"],
                 slug=slug,
                 name=disp_name,
                 form_label=label,
                 sprite_path=sprite_path_for(slug),
-                types=ordered_types(poke["types"]),
+                types=otypes,
                 sprite_url=poke["sprites"]["front_default"],
             ))
 
     rows.sort(key=lambda r: r.id)
     return rows, excluded
+
+
+def prune_orphan_sprites(rows: list[PokemonRow]) -> list[str]:
+    """Delete any sprite PNG whose slug isn't in the current row set. The DB is rebuilt
+    clean each run, but SPRITES_DIR is not — without pruning, a form removed/renamed
+    between runs leaves an orphaned (committed) PNG, and a stale PNG for a now-null-URL
+    slug would let verify_sprites_exist pass on a wrong image. Keeps the skip-existing
+    fair-use behavior for in-set sprites. Returns the slugs pruned."""
+    if not SPRITES_DIR.exists():
+        return []
+    valid = {r.slug for r in rows}
+    pruned: list[str] = []
+    for png in SPRITES_DIR.glob("*.png"):
+        if png.stem not in valid:
+            png.unlink()
+            pruned.append(png.stem)
+    return sorted(pruned)
 
 
 def download_all_sprites(client: PokeApiClient, rows: list[PokemonRow]) -> list[str]:
@@ -396,18 +440,23 @@ def main(argv: list[str] | None = None) -> int:
             print(f"        - {slug}")
 
     print("[3/4] downloading sprites ...")
+    pruned = prune_orphan_sprites(rows)
+    if pruned:
+        print(f"      pruned {len(pruned)} orphaned sprite(s): {pruned}")
     null_url = download_all_sprites(client, rows)
     if null_url:
         print(f"      WARNING: {len(null_url)} rows have a null sprite URL: {sorted(null_url)}")
 
-    print("[4/4] writing DB + verifying ...")
-    version = write_db(rows, chart)
+    # Verify BEFORE writing the DB: a failed run must not leave a valid-looking,
+    # correctly-versioned foresight.db on disk that references missing sprites (AD-4).
+    print("[4/4] verifying sprites + writing DB ...")
     missing = verify_sprites_exist(rows)
     if missing:
         print(f"FAIL: {len(missing)} sprite_path(s) do not resolve to a file:", file=sys.stderr)
         for slug in sorted(missing):
             print(f"  - {slug} -> {sprite_path_for(slug)}", file=sys.stderr)
         return 1
+    version = write_db(rows, chart)
 
     print(f"OK: {DB_PATH.relative_to(REPO_ROOT)} written. "
           f"user_version={version}, pokemon={len(rows)}, chart={len(chart)}, "
