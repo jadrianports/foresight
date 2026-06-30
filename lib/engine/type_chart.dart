@@ -54,5 +54,5 @@ class TypeChart {
   /// fixture, exactly the attacking slugs present. A read-only `Set`, mirroring the
   /// unmodifiable posture of `_entries` — no caching machinery (NFR6).
   Set<String> get attackingTypes =>
-      {for (final key in _entries.keys) key.$1};
+      Set.unmodifiable({for (final key in _entries.keys) key.$1});
 }
