@@ -61,7 +61,28 @@ class StabRisk {
   final List<StabHit> hits;
 
   @override
+  bool operator ==(Object other) =>
+      other is StabRisk &&
+      other.candidateType == candidateType &&
+      _hitsEqual(other.hits, hits);
+
+  @override
+  int get hashCode => Object.hash(candidateType, Object.hashAll(hits));
+
+  @override
   String toString() => 'StabRisk($candidateType, $hits)';
+}
+
+/// Ordered element-wise comparison of two per-STAB hit lists (no `package:flutter`
+/// collection helpers — `lib/engine/` depends on nothing but `dart:core`; AD-2). Mirrors
+/// `Typing`'s slot-ordered equality so two `StabRisk`s match only when their STABs landed
+/// in the same buckets in the same order.
+bool _hitsEqual(List<StabHit> a, List<StabHit> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }
 
 /// Computes, for a [candidateType] attacking pick, how hard the [opponentTyping]'s STABs
