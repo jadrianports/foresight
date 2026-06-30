@@ -35,6 +35,7 @@ class CartridgeColors extends ThemeExtension<CartridgeColors> {
     required this.tierEven,
     required this.tierRisky,
     required this.tierRiskyAccent,
+    required this.tierRiskyText,
   });
 
   /// Warm paper / near-black ground (`scaffoldBackgroundColor`).
@@ -71,6 +72,8 @@ class CartridgeColors extends ThemeExtension<CartridgeColors> {
   // instances below share these values — but every component reads them off the
   // extension uniformly, never as a hard-coded literal. Status is the tier
   // system's job; never confuse these with `ColorScheme.primary/error`.
+  // (Exception: `tierRiskyText` below DOES differ by brightness — it is the tier
+  // color used as text on a theme-dependent surface, not a self-contained fill.)
   final Color tierSafe;
   final Color tierGood;
   final Color tierEven;
@@ -78,6 +81,24 @@ class CartridgeColors extends ThemeExtension<CartridgeColors> {
 
   /// Decorative ONLY — the RISKY hatch/stripe accent. Never placed behind text.
   final Color tierRiskyAccent;
+
+  /// RISKY as load-bearing *text* on [surface] (the result-row typename + the
+  /// honest-banner heading — DESIGN result-row-risky/honest-banner, ≥4.5:1 on
+  /// surface in BOTH themes). This is the one tier token that MUST differ by
+  /// brightness: the tier *fill* is theme-independent (a self-contained badge
+  /// carries its own white text), but the same #C2410C used as text drops to
+  /// 3.0:1 on the dark surface. So light keeps #C2410C; dark brightens to clear
+  /// the floor. Use this for RISKY text-on-surface — never [tierRisky] directly.
+  /// (Review-introduced 2026-07-01; pending DESIGN ratification.)
+  final Color tierRiskyText;
+
+  /// The EVEN badge's label color — a FIXED token, not the brightness [ink].
+  /// The EVEN fill is theme-independent yellow (#F6C700); DESIGN pins its text
+  /// to the olive ink #20300F (9.9:1). Reading the brightness-correct [ink] in
+  /// dark mode would put pale-green #D8E8B0 on yellow = 1.23:1, a hard WCAG
+  /// fail. SAFE/GOOD/RISKY badges use plain white; only EVEN needs this. Epic 3's
+  /// tier badge consumes this for EVEN — never the theme [ink].
+  static const Color tierEvenText = Color(0xFF20300F);
 
   /// Light palette — "DS bright paper". Hex copied verbatim from DESIGN colors.
   static const CartridgeColors light = CartridgeColors(
@@ -97,6 +118,7 @@ class CartridgeColors extends ThemeExtension<CartridgeColors> {
     tierEven: Color(0xFFF6C700),
     tierRisky: Color(0xFFC2410C),
     tierRiskyAccent: Color(0xFFE0531C),
+    tierRiskyText: Color(0xFFC2410C), // 5.18:1 on the white light surface.
   );
 
   /// Dark palette — "Game Boy at night". Same tier fills, dark chrome.
@@ -117,6 +139,7 @@ class CartridgeColors extends ThemeExtension<CartridgeColors> {
     tierEven: Color(0xFFF6C700),
     tierRisky: Color(0xFFC2410C),
     tierRiskyAccent: Color(0xFFE0531C),
+    tierRiskyText: Color(0xFFF2722E), // brightened: 5.35:1 on the dark surface.
   );
 
   @override
@@ -137,6 +160,7 @@ class CartridgeColors extends ThemeExtension<CartridgeColors> {
     Color? tierEven,
     Color? tierRisky,
     Color? tierRiskyAccent,
+    Color? tierRiskyText,
   }) {
     return CartridgeColors(
       paper: paper ?? this.paper,
@@ -155,6 +179,7 @@ class CartridgeColors extends ThemeExtension<CartridgeColors> {
       tierEven: tierEven ?? this.tierEven,
       tierRisky: tierRisky ?? this.tierRisky,
       tierRiskyAccent: tierRiskyAccent ?? this.tierRiskyAccent,
+      tierRiskyText: tierRiskyText ?? this.tierRiskyText,
     );
   }
 

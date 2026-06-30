@@ -31,6 +31,12 @@ void main() {
       expect(light.hairline, isNot(dark.hairline));
       expect(light.shadow, isNot(dark.shadow));
       expect(light.primaryRed, isNot(dark.primaryRed));
+      // The brand primaries + placeholder fills also brighten in dark — assert
+      // them too, so a copy-paste that collapsed one across themes can't pass.
+      expect(light.primaryBlue, isNot(dark.primaryBlue));
+      expect(light.primaryYellow, isNot(dark.primaryYellow));
+      expect(light.placeholder1, isNot(dark.placeholder1));
+      expect(light.placeholder2, isNot(dark.placeholder2));
     });
 
     test('tier fills are identical in light and dark', () {
@@ -41,6 +47,14 @@ void main() {
       expect(light.tierEven, dark.tierEven);
       expect(light.tierRisky, dark.tierRisky);
       expect(light.tierRiskyAccent, dark.tierRiskyAccent);
+    });
+
+    test('tierRiskyText DIFFERS by theme — it is text-on-surface, not a fill', () {
+      // The one tier token that must brighten in dark: #C2410C as text is fine
+      // on the white light surface but 3.0:1 on the dark surface, so dark uses a
+      // brightened orange. Lock the divergence so it can't be "unified" back.
+      expect(CartridgeColors.light.tierRiskyText,
+          isNot(CartridgeColors.dark.tierRiskyText));
     });
   });
 

@@ -66,17 +66,19 @@ void main() {
           <String>{'fighting', 'poison', 'ghost', 'dragon', 'dark'});
     });
 
-    test('all 4 tier badges clear 4.5:1 with their badge text color', () {
+    test('all 4 tier badges clear 4.5:1 with their production badge text color', () {
       const c = CartridgeColors.light;
-      // SAFE / GOOD / RISKY use white text; EVEN uses ink on yellow.
-      final pairings = <String, ({Color fill, Color text})>{
-        'SAFE': (fill: c.tierSafe, text: Colors.white),
-        'GOOD': (fill: c.tierGood, text: Colors.white),
-        'EVEN': (fill: c.tierEven, text: c.ink),
-        'RISKY': (fill: c.tierRisky, text: Colors.white),
+      // Fills are theme-independent; drive the text color through the SAME
+      // production rule Epic 3 will use (`tierBadgeTextColor`) so the test
+      // catches a regression in that rule, not just hand-typed literals.
+      final fills = <String, Color>{
+        'SAFE': c.tierSafe,
+        'GOOD': c.tierGood,
+        'EVEN': c.tierEven,
+        'RISKY': c.tierRisky,
       };
-      pairings.forEach((label, pair) {
-        final ratio = contrastRatio(pair.fill, pair.text);
+      fills.forEach((label, fill) {
+        final ratio = contrastRatio(fill, tierBadgeTextColor(label));
         expect(
           ratio,
           greaterThanOrEqualTo(aaNormal),
@@ -84,6 +86,62 @@ void main() {
               'is below the 4.5:1 floor',
         );
       });
+    });
+
+    test('EVEN badge text is the FIXED ink — the brightness ink would fail dark', () {
+      // The whole reason `tierEvenText` is fixed: the theme-correct dark ink on
+      // the (theme-independent) yellow fill is a hard contrast fail. Lock both
+      // the pass (fixed ink) and the trap (dark ink) so no one "simplifies"
+      // EVEN's text back to `Theme...ink`.
+      const even = CartridgeColors.light; // tierEven is identical light/dark.
+      expect(tierBadgeTextColor('EVEN'), CartridgeColors.tierEvenText);
+      expect(contrastRatio(even.tierEven, CartridgeColors.tierEvenText),
+          greaterThanOrEqualTo(aaNormal));
+      expect(contrastRatio(even.tierEven, CartridgeColors.dark.ink),
+          lessThan(aaNormal),
+          reason: 'dark theme ink on the yellow EVEN fill must NOT be used');
+    });
+
+    test('RISKY-as-text clears 4.5:1 on the surface in BOTH themes', () {
+      // DESIGN result-row-risky/honest-banner render the tier-risky color as
+      // load-bearing TEXT on `surface`, required ≥4.5:1 in both themes. The fill
+      // is theme-independent but the surface is not, so the text token differs.
+      for (final c in <CartridgeColors>[
+        CartridgeColors.light,
+        CartridgeColors.dark,
+      ]) {
+        final ratio = contrastRatio(c.tierRiskyText, c.surface);
+        expect(
+          ratio,
+          greaterThanOrEqualTo(aaNormal),
+          reason: 'RISKY text-on-surface contrast ${ratio.toStringAsFixed(2)}:1 '
+              'is below the 4.5:1 floor',
+        );
+      }
+    });
+
+    test('chrome text (ink, inkMuted) clears 4.5:1 on paper + surface, both themes',
+        () {
+      // The everyday body/subline pairings DESIGN flags ≥4.5:1: primary ink and
+      // muted ink (sublines/footnotes/empty-state) on both grounds. `inkMuted`
+      // on light paper is the tightest at ~4.9:1 — guard it so a future paper or
+      // ink-muted tweak can't silently regress it.
+      for (final c in <CartridgeColors>[
+        CartridgeColors.light,
+        CartridgeColors.dark,
+      ]) {
+        for (final text in <Color>[c.ink, c.inkMuted]) {
+          for (final ground in <Color>[c.paper, c.surface]) {
+            final ratio = contrastRatio(text, ground);
+            expect(
+              ratio,
+              greaterThanOrEqualTo(aaNormal),
+              reason: 'chrome text contrast ${ratio.toStringAsFixed(2)}:1 '
+                  'is below the 4.5:1 floor',
+            );
+          }
+        }
+      }
     });
   });
 }

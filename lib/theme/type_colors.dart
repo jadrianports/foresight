@@ -53,3 +53,27 @@ Color typeChipTextColor(String slug) {
       ? Colors.white
       : CartridgeColors.light.ink;
 }
+
+/// The label color a tier badge must use to clear ≥4.5:1 on its (theme-
+/// independent) fill. SAFE/GOOD/RISKY ride white; EVEN alone needs the FIXED
+/// olive ink ([CartridgeColors.tierEvenText], #20300F) — reading the brightness
+/// `ink` in dark mode would put pale-green on yellow at 1.23:1. Keyed by the
+/// uppercase tier label the engine emits (AD-9); an unknown label throws rather
+/// than silently inking. Locked by `test/theme/contrast_test.dart`. (Epic 3's
+/// tier badge consumes this; no badge is rendered here.)
+Color tierBadgeTextColor(String tierLabel) {
+  switch (tierLabel) {
+    case 'SAFE':
+    case 'GOOD':
+    case 'RISKY':
+      return Colors.white;
+    case 'EVEN':
+      return CartridgeColors.tierEvenText;
+    default:
+      throw ArgumentError.value(
+        tierLabel,
+        'tierLabel',
+        'not one of SAFE/GOOD/EVEN/RISKY',
+      );
+  }
+}
