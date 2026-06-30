@@ -19,5 +19,15 @@ TypeChart buildFixtureChart() => TypeChart({
       // ×0 immunity dual: electric vs ground/water — 0× · 2× (AC#2).
       ('electric', 'ground'): 0.0,
       ('electric', 'water'): 2.0,
+      // STAB-into-proxy direction (Story 2.2): the opponent's STAB type ATTACKS a
+      // mono proxy of the candidate type. Canonical Rock/Dark-vs-Fairy case — the two
+      // STABs land in DIFFERENT defensive buckets, so they must NOT collapse (AD-9):
+      ('dark', 'fairy'): 0.5, // Fairy resists Dark
+      ('rock', 'fairy'): 1.0, // Fairy is neutral to Rock
+      // Mono-opponent STAB (grass) into a fire proxy — resisted (Story 2.2 mono case).
+      ('grass', 'fire'): 0.5,
+      // Immunity STAB: a ghost STAB into a normal proxy — Normal is immune to Ghost.
+      ('ghost', 'normal'): 0.0,
       // NOTE: ('fighting', 'steel') is intentionally ABSENT → drives the MissingChartEntry tests.
+      // NOTE: ('dragon', 'fairy') is intentionally ABSENT → drives the Story 2.2 missing-entry test.
     });
