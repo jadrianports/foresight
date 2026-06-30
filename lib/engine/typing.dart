@@ -6,12 +6,17 @@
 /// holder: equality + `toString` for test readability, and NO effectiveness logic
 /// (NFR6 — no premature abstraction). [AD-2: `rank(opponentTyping, …)`]
 class Typing {
-  /// Construct from an ordered slug list. Asserts the count is 1 or 2; the list is
-  /// copied unmodifiable so the value object cannot be mutated after construction.
-  Typing(List<String> types)
-      : assert(types.length == 1 || types.length == 2,
-            'A Typing holds 1 or 2 type slugs (primary, secondary); got ${types.length}.'),
-        types = List.unmodifiable(types);
+  /// Construct from an ordered slug list. Throws [ArgumentError] unless the count is
+  /// 1 or 2; the list is copied unmodifiable so the value object cannot be mutated
+  /// after construction. A hard throw (not just an `assert`) so the 1-or-2 contract
+  /// holds in release builds too, where asserts are stripped — a malformed `Typing`
+  /// must fail loud, never fold to a silent answer (AD-7).
+  Typing(List<String> types) : types = List.unmodifiable(types) {
+    if (this.types.length != 1 && this.types.length != 2) {
+      throw ArgumentError.value(this.types.length, 'types.length',
+          'A Typing holds 1 or 2 type slugs (primary, secondary)');
+    }
+  }
 
   /// A single-type defender.
   Typing.mono(String type) : this([type]);

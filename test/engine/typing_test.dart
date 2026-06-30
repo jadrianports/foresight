@@ -26,8 +26,10 @@ void main() {
     expect(Typing.mono('Fire').types, ['Fire']);
   });
 
-  test('asserts the slug count is 1 or 2', () {
-    expect(() => Typing(<String>[]), throwsA(isA<AssertionError>()));
-    expect(() => Typing(['a', 'b', 'c']), throwsA(isA<AssertionError>()));
+  test('throws (not just asserts) when the slug count is not 1 or 2 — release-safe', () {
+    // A hard throw, so the 1-or-2 contract holds even in release builds where asserts
+    // are stripped; a malformed Typing must fail loud, never fold to a silent answer.
+    expect(() => Typing(<String>[]), throwsArgumentError);
+    expect(() => Typing(['a', 'b', 'c']), throwsArgumentError);
   });
 }

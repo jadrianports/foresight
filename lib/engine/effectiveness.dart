@@ -17,6 +17,13 @@ import 'typing.dart';
 /// (`String` attacker + `Typing` defender) and forward-compatible, NOT forward-built.
 double typeEffectiveness(
     String attackingType, Typing defender, TypeChart chart) {
+  // Defense-in-depth: `Typing` already forbids an empty slug list, but guard here too —
+  // an empty fold would return a silent `1×` ("neutral"), the exact wrong answer AD-7
+  // forbids. Fail loud rather than let a degenerate defender produce confident advice.
+  if (defender.types.isEmpty) {
+    throw ArgumentError.value(defender, 'defender',
+        'typeEffectiveness needs a defender with at least one type (AD-7).');
+  }
   var product = 1.0;
   for (final defendingType in defender.types) {
     product *= chart.multiplierFor(attackingType, defendingType);
