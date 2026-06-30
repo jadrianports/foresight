@@ -155,10 +155,23 @@ Future<int> _readCopiedUserVersion(
 /// killed mid-copy must not leave a truncated `foresight.db` that the existence gate then
 /// trusts forever.
 Future<void> _copyAssetAtomically(Uint8List bytes, String dbPath) async {
-  await Directory(dirname(dbPath)).create(recursive: true);
   final tmpPath = '$dbPath.tmp';
-  await File(tmpPath).writeAsBytes(bytes, flush: true);
-  await File(tmpPath).rename(dbPath);
+  try {
+    await Directory(dirname(dbPath)).create(recursive: true);
+    await File(tmpPath).writeAsBytes(bytes, flush: true);
+    await File(tmpPath).rename(dbPath);
+  } on FileSystemException catch (e) {
+    // AC#4: a failed copy is a contract violation — surface it as the loud app-specific
+    // type, not a raw FileSystemException, and never leave a half-written `*.tmp` behind
+    // (the existence gate would otherwise be unaffected, but the orphan is dead weight).
+    try {
+      final tmp = File(tmpPath);
+      if (await tmp.exists()) await tmp.delete();
+    } catch (_) {
+      // Best-effort cleanup; the original copy failure is the real error to report.
+    }
+    throw DataContractViolation('Failed to copy the bundled DB to $dbPath: ${e.message}');
+  }
 }
 
 /// Assert every required table exists; a missing one is a loud contract violation (AD-7).
@@ -206,5 +219,14 @@ Future<double> typeMultiplier(
       'Missing type_chart row for ($attacking, $defending).',
     );
   }
-  return (rows.first['multiplier'] as num).toDouble();
+  // A present row with a NULL multiplier is still a contract violation (the schema is
+  // `REAL NOT NULL`, so this only happens on a corrupt DB) — surface it as the loud
+  // app-specific type, never let `as num` throw a bare TypeError (AD-7).
+  final value = rows.first['multiplier'];
+  if (value is! num) {
+    throw DataContractViolation(
+      'type_chart row for ($attacking, $defending) has a non-numeric multiplier.',
+    );
+  }
+  return value.toDouble();
 }
