@@ -7,6 +7,8 @@ import '../engine/typing.dart';
 import '../theme/cartridge_colors.dart';
 import '../theme/cartridge_physics.dart';
 import '../theme/cartridge_typography.dart';
+import 'result_state.dart';
+import 'widgets/honest_banner.dart';
 import 'widgets/opponent_card.dart';
 import 'widgets/tier_result_row.dart';
 
@@ -20,11 +22,16 @@ import 'widgets/tier_result_row.dart';
 /// presentational — it renders the engine's order and tier labels verbatim and
 /// never re-sorts, re-filters, or re-derives a tier (AD-9).
 ///
-/// Scope fence (AC#10): FIXED `SortMode.safestFirst` — no sort toggle (3.6), no
-/// all-fragile banner (3.5), no recents write (3.7), no top-pick pulse /
-/// `Semantics` / dynamic-type pass (3.8), no breakdown link (4.1), no
-/// Provider/controller, no new dep. An empty `rank` result (no super-effective
-/// survivor) renders the header + section with zero rows and does NOT crash.
+/// All-fragile (Story 3.5): when EVERY pick is RISKY (`isAllFragile`), the screen
+/// LEADS with one honest [HonestBanner] instead of a wall of ⚠ rows, and orders
+/// the (still-shown) rows hardest-hitting. The order is an AUTOMATIC consequence
+/// of all-RISKY — NOT a user sort control (that is Story 3.6).
+///
+/// Scope fence: no sort toggle / persisted sort (3.6), no recents write (3.7), no
+/// top-pick pulse / `Semantics` / dynamic-type pass (3.8), no breakdown link
+/// (4.1), no Provider/controller, no new dep. An empty `rank` result (no
+/// super-effective survivor) is NOT the all-fragile case (`isAllFragile([])` is
+/// false): it keeps Story 3.4's header + zero-rows + no-banner behavior (AC#4).
 class ResultScreen extends StatelessWidget {
   const ResultScreen({super.key, required this.opponent, required this.chart});
 
@@ -42,7 +49,17 @@ class ResultScreen extends StatelessWidget {
     // Pure, synchronous — the whole point of injecting the chart (NFR2). A []
     // result is a legitimate empty state (rank never throws for no survivors);
     // a corrupt chart cell still throws MissingChartEntry LOUDLY (AD-7).
-    final picks = rank(Typing(opponent.types), chart, SortMode.safestFirst);
+    final safest = rank(Typing(opponent.types), chart, SortMode.safestFirst);
+    final allFragile = isAllFragile(safest);
+    // When all-fragile, order the (still-shown) rows hardest-hitting (AC#2). The
+    // second rank runs ONLY in the rare all-fragile case and is pure/cheap (≤18
+    // candidates). Since an all-RISKY list is one tier, safestFirst and
+    // hardestHitting are provably the same order — the re-rank makes the intent
+    // explicit and is robust to any future within-tier ordering change. It is
+    // NOT a sort control (that is Story 3.6).
+    final picks = allFragile
+        ? rank(Typing(opponent.types), chart, SortMode.hardestHitting)
+        : safest;
 
     return Scaffold(
       appBar: AppBar(title: const Text('FORESIGHT')),
@@ -52,14 +69,21 @@ class ResultScreen extends StatelessWidget {
           children: [
             OpponentCard(opponent),
             const SizedBox(height: CartridgePhysics.s4),
+            // The honest banner LEADS the answer when every pick is fragile
+            // (AC#1) — it does not suppress the rows; they still follow below.
+            if (allFragile) ...[
+              const HonestBanner(),
+              const SizedBox(height: CartridgePhysics.s4),
+            ],
             Text(
               'USE THESE TYPES',
               style: CartridgeTypography.sectionHeader
                   .copyWith(color: colors.ink),
             ),
             const SizedBox(height: CartridgePhysics.s3),
-            // The list order IS the engine's safest-first order — rendered, never
-            // re-sorted. #1 (the top row) is the safest tier, offense-desc within.
+            // The list order IS the engine's order — rendered, never re-sorted.
+            // Normal: safest-first (#1 = safest tier). All-fragile: hardest-
+            // hitting (#1 = the biggest hit — lead with it).
             for (final pick in picks) ...[
               TierResultRow(pick),
               const SizedBox(height: CartridgePhysics.s3),

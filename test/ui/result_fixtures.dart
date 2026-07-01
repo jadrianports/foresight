@@ -46,6 +46,41 @@ TypeChart buildResultChart() => TypeChart({
       ('rock', 'ground'): 2.0, ('dark', 'ground'): 1.0, //     weak → RISKY
     });
 
+/// A crafted opponent + chart where EVERY super-effective survivor is RISKY —
+/// the Story 3.5 all-fragile case. `rank(Typing(['rock','flying']), chart, ...)`
+/// yields, hardest-hitting:
+///   1. Water    4×  RISKY (4× offense; weak to the Rock STAB)
+///   2. Electric 2×  RISKY (2× offense; weak to the Rock STAB)
+/// Two survivors at DIFFERENT offense (4× vs 2×) so the hardest-hitting order
+/// (bigger hit on top) is assertable, and BOTH RISKY so `isAllFragile` is true.
+///
+/// Mirrors `buildResultChart`'s density: `rock`/`flying` appear as attacking
+/// slugs (introduced by the STAB-direction rows), so offense rows into both
+/// opponent slots exist for every universe type — they're gated out at 1×.
+const allFragileOpponent = ['rock', 'flying'];
+
+PokemonListItem buildAllFragileOpponent() => PokemonListItem(
+      id: 700,
+      name: 'Fragilemon',
+      formLabel: null,
+      spritePath: 'assets/sprites/__nope_700__.png',
+      types: allFragileOpponent,
+    );
+
+TypeChart buildAllFragileChart() => TypeChart({
+      // ---- offense direction: (attacking, defending∈{rock,flying}) ----
+      // Survivors (≥ 2×), both RISKY:
+      ('water', 'rock'): 2.0, ('water', 'flying'): 2.0, //     4× RISKY
+      ('electric', 'rock'): 2.0, ('electric', 'flying'): 1.0, // 2× RISKY
+      // Gated out (< 2×) — offense rows still required for the universe scan
+      // (rock/flying enter the universe via the STAB rows below):
+      ('rock', 'rock'): 1.0, ('rock', 'flying'): 1.0,
+      ('flying', 'rock'): 1.0, ('flying', 'flying'): 1.0,
+      // ---- STAB direction: (opponentStab∈{rock,flying}, candidateProxy) ----
+      ('rock', 'water'): 2.0, ('flying', 'water'): 1.0, //     weak → RISKY
+      ('rock', 'electric'): 2.0, ('flying', 'electric'): 1.0, // weak → RISKY
+    });
+
 /// A crafted opponent with NO super-effective survivor → `rank` returns `[]`
 /// (a legitimate empty state, AC#10). Mono `normal` where the only attacking
 /// type in the chart is neutral into it, so the SE gate empties the answer set.

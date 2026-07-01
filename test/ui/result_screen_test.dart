@@ -13,6 +13,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:foresight/theme/cartridge_theme.dart';
 import 'package:foresight/ui/result_screen.dart';
+import 'package:foresight/ui/widgets/honest_banner.dart';
 import 'package:foresight/ui/widgets/tier_result_row.dart';
 import 'package:foresight/ui/widgets/type_chip.dart';
 
@@ -80,6 +81,49 @@ void main() {
     expect(find.text('Resists both its STABs'), findsOneWidget);
     expect(find.textContaining('takes nothing'), findsNothing);
 
+    // Story 3.5 AC#3: a mixed (not all-RISKY) result shows NO honest banner, the
+    // EVEN row reads the calm "Even trade", and "trading blows" never leaks in.
+    expect(find.byType(HonestBanner), findsNothing);
+    expect(find.text('Even trade'), findsOneWidget);
+    expect(find.textContaining('trading blows'), findsNothing);
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'AC#1/#2/#5: all-fragile → honest banner leads, RISKY rows still follow '
+      'hardest-hitting', (tester) async {
+    await tester.pumpWidget(_host(
+      ResultScreen(
+          opponent: buildAllFragileOpponent(), chart: buildAllFragileChart()),
+    ));
+    await tester.pumpAndSettle();
+
+    // The banner leads with its heading + the exact honest line (verbatim copy).
+    expect(find.byType(HonestBanner), findsOneWidget);
+    expect(find.text('NO CLEAN ANSWER'), findsOneWidget);
+    expect(
+      find.text(
+          "No clean answer — you're trading blows. Lead with the hardest hit."),
+      findsOneWidget,
+    );
+
+    // The rows still follow beneath it — every RISKY pick renders (AC#2).
+    expect(find.byType(TierResultRow), findsNWidgets(2));
+    expect(find.text('RISKY'), findsNWidgets(2));
+    expect(find.text('WATER'), findsOneWidget);
+    expect(find.text('ELECTRIC'), findsOneWidget);
+
+    // Hardest-hitting order: the 4× row sits above the 2× row.
+    final bigHitY = tester.getTopLeft(find.text('4×')).dy;
+    final smallHitY = tester.getTopLeft(find.text('2×')).dy;
+    expect(bigHitY, lessThan(smallHitY));
+
+    // The banner LEADS: its heading renders above the first row.
+    final bannerY = tester.getTopLeft(find.text('NO CLEAN ANSWER')).dy;
+    expect(bannerY, lessThan(bigHitY));
+
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -98,6 +142,8 @@ void main() {
     expect(find.text('Blankmon'), findsOneWidget);
     expect(find.text('USE THESE TYPES'), findsOneWidget);
     expect(find.byType(TierResultRow), findsNothing);
+    // Story 3.5 AC#4: the degenerate [] case is NOT all-fragile — no banner.
+    expect(find.byType(HonestBanner), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
