@@ -5,6 +5,7 @@ import '../data/pokemon_queries.dart';
 import '../engine/ranking.dart';
 import '../engine/type_chart.dart';
 import '../engine/typing.dart';
+import '../recents_controller.dart';
 import '../settings_controller.dart';
 import '../theme/cartridge_colors.dart';
 import '../theme/cartridge_physics.dart';
@@ -39,13 +40,23 @@ import 'widgets/tier_result_row.dart';
 /// slug-asc), so the banner's "lead with the hardest hit" intent holds under
 /// EITHER toggle position (Story 3.5 AC#2 preserved) with a single `rank(...)`.
 ///
-/// Scope fence: no recents write (3.7), no top-pick pulse / `Semantics` /
-/// dynamic-type / ≥44pt audit (3.8), no breakdown link (4.1), no theme slice /
-/// Settings screen (4.2), no new dep beyond `provider`. An empty `rank` result
-/// (no super-effective survivor) is NOT the all-fragile case (`isAllFragile([])`
-/// is false): it keeps Story 3.4's header + zero-rows + no-banner behavior and
-/// shows NO toggle (nothing to re-sort — AC#6).
-class ResultScreen extends StatelessWidget {
+/// Recents (Story 3.7): viewing this screen RECORDS the opponent to
+/// `recent_views` via the root [RecentsController] (AD-5/AD-6). It fires exactly
+/// ONCE per mount — scheduled from `initState` via a post-frame callback, NOT in
+/// `build` — because `build` re-runs on every sort toggle (`context.watch`
+/// above), and recording there would bump `viewed_at` and churn the strip on
+/// each toggle. Post-frame so the controller's `notifyListeners` fires AFTER the
+/// first frame (a notify DURING build throws). `context.read` — an action, not a
+/// listen.
+///
+/// Scope fence: no top-pick pulse / `Semantics` / dynamic-type / ≥44pt audit
+/// (3.8), no breakdown link (4.1), no theme slice / Settings screen (4.2), no new
+/// dep beyond `provider`. An empty `rank` result (no super-effective survivor) is
+/// NOT the all-fragile case (`isAllFragile([])` is false): it keeps Story 3.4's
+/// header + zero-rows + no-banner behavior and shows NO toggle (nothing to
+/// re-sort — AC#6). The recents write still fires for such an opponent — the user
+/// DID view it.
+class ResultScreen extends StatefulWidget {
   const ResultScreen({super.key, required this.opponent, required this.chart});
 
   /// The tapped opponent, carried verbatim from the grid — its `types` ARE the
@@ -54,6 +65,23 @@ class ResultScreen extends StatelessWidget {
 
   /// The injected in-memory type chart `rank` runs against.
   final TypeChart chart;
+
+  @override
+  State<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends State<ResultScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Record ONCE per mount (AC#8). Post-frame so the controller notify lands
+    // after the first frame (never notify-during-build → no "setState called
+    // during build" throw), and so it never repeats on a sort-toggle rebuild.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<RecentsController>().recordView(widget.opponent);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +95,7 @@ class ResultScreen extends StatelessWidget {
     // Pure, synchronous — the whole point of injecting the chart (NFR2). A []
     // result is a legitimate empty state (rank never throws for no survivors);
     // a corrupt chart cell still throws MissingChartEntry LOUDLY (AD-7).
-    final picks = rank(Typing(opponent.types), chart, sortMode);
+    final picks = rank(Typing(widget.opponent.types), widget.chart, sortMode);
     // Order-independent: `isAllFragile` uses `every`, so it is the same for
     // either sort position (AC#5).
     final allFragile = isAllFragile(picks);
@@ -78,7 +106,7 @@ class ResultScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(CartridgePhysics.s4),
           children: [
-            OpponentCard(opponent),
+            OpponentCard(widget.opponent),
             const SizedBox(height: CartridgePhysics.s4),
             // The sort toggle sits directly under the card, its spec'd home
             // (EXPERIENCE.md:74). Shown ONLY when there are rows — the degenerate

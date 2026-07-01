@@ -17,6 +17,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:foresight/engine/ranking.dart';
+import 'package:foresight/recents_controller.dart';
 import 'package:foresight/settings_controller.dart';
 import 'package:foresight/theme/cartridge_theme.dart';
 import 'package:foresight/ui/result_screen.dart';
@@ -25,6 +26,7 @@ import 'package:foresight/ui/widgets/sort_toggle.dart';
 import 'package:foresight/ui/widgets/tier_result_row.dart';
 import 'package:foresight/ui/widgets/type_chip.dart';
 
+import '../recents_test_support.dart';
 import 'result_fixtures.dart';
 
 /// Builds a fresh SettingsController over mocked prefs seeded to [start]. A test
@@ -38,10 +40,19 @@ Future<SettingsController> _controller(
   return SettingsController(await SharedPreferences.getInstance());
 }
 
-/// Provider ancestor + themed MaterialApp host for a directly-pumped ResultScreen.
-Widget _host(Widget child, SettingsController settings) =>
-    ChangeNotifierProvider<SettingsController>.value(
-      value: settings,
+/// Story 3.7: ResultScreen records to the root RecentsController on mount, so
+/// every host now supplies one too (AC#11f harness break). A fresh empty
+/// controller per test; the record-on-mount test observes it directly.
+late RecentsController _recents;
+
+/// Provider ancestors + themed MaterialApp host for a directly-pumped
+/// ResultScreen — both the SettingsController (sort, watched) and the
+/// RecentsController (recents, read on mount) resolve above MaterialApp.
+Widget _host(Widget child, SettingsController settings) => MultiProvider(
+      providers: [
+        ChangeNotifierProvider<SettingsController>.value(value: settings),
+        ChangeNotifierProvider<RecentsController>.value(value: _recents),
+      ],
       child: MaterialApp(
         theme: buildLightTheme(),
         darkTheme: buildDarkTheme(),
@@ -53,6 +64,11 @@ void main() {
   setUpAll(() {
     // Mirror main(): never reach for the network during tests (AD-1).
     GoogleFonts.config.allowRuntimeFetching = false;
+    initRecentsFfi();
+  });
+
+  setUp(() async {
+    _recents = await buildTestRecents();
   });
 
   testWidgets('AC#2/#7/#11c: leads with the opponent header + USE THESE TYPES',
@@ -222,6 +238,34 @@ void main() {
     expect(find.byType(TierResultRow), findsNothing);
     expect(find.byType(HonestBanner), findsNothing);
     expect(find.byType(SortToggle), findsNothing); // AC#6
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'AC#8/#11e: records the opponent exactly ONCE per mount — a sort toggle '
+      'does NOT record again', (tester) async {
+    // recordView is the only thing that notifies RecentsController, so a listener
+    // count IS the recordView count.
+    var records = 0;
+    _recents.addListener(() => records++);
+
+    await tester.pumpWidget(_host(
+      ResultScreen(opponent: buildRockDarkOpponent(), chart: buildResultChart()),
+      await _controller(),
+    ));
+    await tester.pumpAndSettle();
+
+    // The post-frame callback fired once → exactly one record.
+    expect(records, 1);
+    expect(_recents.recents.map((i) => i.name), ['Tyranitar']);
+
+    // Flip the sort — ResultScreen rebuilds (context.watch) but initState does
+    // NOT re-run, so no second record (the AC#8 subtle bug).
+    await tester.tap(find.text('HARDEST HITTING'));
+    await tester.pumpAndSettle();
+
+    expect(records, 1, reason: 'a toggle rebuild must not re-record');
+    expect(find.byType(ResultScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

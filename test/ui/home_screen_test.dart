@@ -17,14 +17,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:foresight/data/pokemon_queries.dart';
 import 'package:foresight/engine/type_chart.dart';
+import 'package:foresight/recents_controller.dart';
 import 'package:foresight/settings_controller.dart';
 import 'package:foresight/theme/cartridge_theme.dart';
 import 'package:foresight/ui/home_screen.dart';
 import 'package:foresight/ui/result_screen.dart';
+import 'package:foresight/ui/widgets/empty_recents.dart';
 import 'package:foresight/ui/widgets/form_badge.dart';
+import 'package:foresight/ui/widgets/recent_tile.dart';
 import 'package:foresight/ui/widgets/sprite_tile.dart';
 import 'package:foresight/ui/widgets/type_chip.dart';
 
+import '../recents_test_support.dart';
 import 'result_fixtures.dart';
 
 /// Story 3.4 threads a required `chart` through HomeScreen. The pre-3.4 tests
@@ -165,8 +169,17 @@ const _noResultsCopy = 'No Pokémon match that. Check the spelling?';
 /// pushed routes resolve it. Seeded per-test in setUp over mocked prefs.
 late SettingsController _settings;
 
-Widget _host(Widget child) => ChangeNotifierProvider<SettingsController>.value(
-      value: _settings,
+/// Story 3.7: HomeScreen watches the root RecentsController, and its pushed
+/// ResultScreen reads it on mount — so the host provides one above MaterialApp
+/// (AC#11f harness break). Empty by default (→ the empty-recents state); the
+/// strip tests reassign it before pumping.
+late RecentsController _recents;
+
+Widget _host(Widget child) => MultiProvider(
+      providers: [
+        ChangeNotifierProvider<SettingsController>.value(value: _settings),
+        ChangeNotifierProvider<RecentsController>.value(value: _recents),
+      ],
       child: MaterialApp(
         theme: buildLightTheme(),
         darkTheme: buildDarkTheme(),
@@ -179,11 +192,13 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues({});
     _settings = SettingsController(await SharedPreferences.getInstance());
+    _recents = await buildTestRecents();
   });
 
   setUpAll(() {
     // Mirror main(): never reach for the network during tests (AD-1).
     GoogleFonts.config.allowRuntimeFetching = false;
+    initRecentsFfi();
   });
 
   testWidgets('renders the wordmark and one tile per injected item',
@@ -393,6 +408,75 @@ void main() {
     expect(find.byType(ResultScreen), findsOneWidget);
     expect(find.text('Tyranitar'), findsOneWidget);
     expect(find.text('USE THESE TYPES'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  // ----- Story 3.7: recent strip + empty state -----
+
+  testWidgets(
+      'AC#5/#11d: the strip shows N recent tiles above the grid, newest-first, '
+      'and a tap reopens Result', (tester) async {
+    // A dex with the chart-covered rock/dark opponent plus a base form. Seed
+    // recents [1, 248] with ascending timestamps → id 248 is newest.
+    final dex = [
+      buildRockDarkOpponent(), // id 248, rock/dark (buildResultChart covers it)
+      PokemonListItem(
+        id: 1,
+        name: 'Bulbasaur',
+        formLabel: null,
+        spritePath: 'assets/sprites/__nope_1__.png',
+        types: const ['grass', 'poison'],
+      ),
+    ];
+    // Build the seeded controller in a REAL async zone — RecentsController.open
+    // does sqflite_common_ffi I/O, and awaiting real isolate I/O inside the
+    // testWidgets fake-async body would hang (as would `await` on it directly).
+    final seeded = await tester.runAsync(
+        () => buildTestRecents(dex: dex, seededIds: const [1, 248]));
+    _recents = seeded!;
+
+    await tester.pumpWidget(
+        _host(HomeScreen(pokemon: dex, chart: buildResultChart())));
+    await tester.pumpAndSettle();
+
+    // Two recent tiles, newest (Tyranitar) first in the strip.
+    expect(find.byType(RecentTile), findsNWidgets(2));
+    expect(
+      find.descendant(
+          of: find.byType(RecentTile).first, matching: find.text('Tyranitar')),
+      findsOneWidget,
+      reason: 'newest recent (Tyranitar) is first in the strip',
+    );
+
+    // The strip sits ABOVE the grid, which is still fully populated.
+    final stripY = tester.getTopLeft(find.byType(RecentTile).first).dy;
+    final gridY = tester.getTopLeft(find.byType(SpriteTile).first).dy;
+    expect(stripY, lessThan(gridY));
+    expect(find.byType(SpriteTile), findsNWidgets(dex.length));
+
+    // Tapping the newest recent tile reopens Result for that opponent.
+    await tester.tap(find.byType(RecentTile).first);
+    await tester.pumpAndSettle();
+    expect(find.byType(ResultScreen), findsOneWidget);
+    expect(find.text('USE THESE TYPES'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'AC#6/#11d: no history → the verbatim empty line renders, grid still full',
+      (tester) async {
+    // _recents is empty (setUp default) → the empty-recents state.
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _fakeDex, chart: _chart)));
+    await tester.pump();
+
+    expect(find.byType(EmptyRecents), findsOneWidget);
+    expect(
+      find.text('No recent matchups yet — tap a Pokémon to start.'),
+      findsOneWidget,
+    );
+    expect(find.byType(RecentTile), findsNothing);
+    // The grid below is still fully populated and usable.
+    expect(find.byType(SpriteTile), findsNWidgets(_fakeDex.length));
     expect(tester.takeException(), isNull);
   });
 }

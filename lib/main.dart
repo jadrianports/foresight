@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'data/foresight_database.dart';
 import 'data/pokemon_queries.dart';
+import 'recents_controller.dart';
 import 'settings_controller.dart';
 
 Future<void> main() async {
@@ -42,5 +43,17 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   final settings = SettingsController(prefs);
 
-  runApp(ForesightApp(pokemon: pokemon, chart: chart, settings: settings));
+  // AD-5/AD-6 / NFR2: the SECOND root controller. Recents persist in SQLite
+  // (`recent_views`, the only writable table — NOT shared_preferences), so this
+  // reads the persisted recents ONCE from the open `db`, resolving ids against
+  // the in-memory `pokemon` dex. This one await sits under the same native
+  // splash as the reads above — no in-app spinner/FutureBuilder (Story 3.7).
+  final recents = await RecentsController.open(db, pokemon);
+
+  runApp(ForesightApp(
+    pokemon: pokemon,
+    chart: chart,
+    settings: settings,
+    recents: recents,
+  ));
 }

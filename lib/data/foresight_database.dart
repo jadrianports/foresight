@@ -92,11 +92,15 @@ Future<Database> openForesightDatabase({
     }
   }
 
-  // 6. Open the copy read-only (the app writes no table in this story; recent_views writes
-  //    arrive in Epic 3) and assert the final contract.
+  // 6. Open the copy READ-WRITE and assert the final contract. Story 3.7 (AD-5) turns on the
+  //    app's ONE writable surface: `recent_views` (insert/evict via RecentsController). Every
+  //    OTHER table stays read-only by convention — the app never writes them. We add NO
+  //    `version:`/`onCreate:`/`onUpgrade:`: the prebake owns the schema and the copied DB
+  //    already has every table (AD-8); an app-side onCreate would be wrong. The reconcile read
+  //    (`_readCopiedUserVersion`) stays read-only — it only reads a PRAGMA.
   final db = await factory.openDatabase(
     dbPath,
-    options: OpenDatabaseOptions(readOnly: true),
+    options: OpenDatabaseOptions(readOnly: false),
   );
   // Fail loud on any contract violation — but never leak the open handle (it would lock the
   // file). Close, then rethrow so the launch still crashes to a clear message (AD-7).

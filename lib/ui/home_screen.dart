@@ -1,20 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../data/pokemon_queries.dart';
 import '../engine/type_chart.dart';
+import '../recents_controller.dart';
 import '../theme/cartridge_colors.dart';
 import '../theme/cartridge_physics.dart';
 import '../theme/cartridge_typography.dart';
 import 'result_screen.dart';
+import 'widgets/empty_recents.dart';
 import 'widgets/form_badge.dart';
+import 'widgets/recent_tile.dart';
 import 'widgets/search_field.dart';
 import 'widgets/sprite_tile.dart';
 
-/// Home: the app-title wordmark, a live-search bar (Story 3.2), then a full-dex
-/// 3-column sprite grid (Story 3.1). Typing narrows the grid IN PLACE on every
-/// keystroke — never a submit, never a navigation. The form badge (3.3),
-/// tap→Result (3.4), the recent strip (3.5/3.7), and the sort toggle (3.6) all
-/// layer on later; leave room for them but build none here.
+/// Home: the app-title wordmark, a live-search bar (Story 3.2), a horizontal
+/// Recent strip (Story 3.7), then a full-dex 3-column sprite grid (Story 3.1).
+/// Typing narrows the grid IN PLACE on every keystroke — never a submit, never a
+/// navigation. The form badge (3.3) and tap→Result (3.4) compose over the grid;
+/// the sort toggle (3.6) lives on Result. The IA is wordmark → search → recent →
+/// grid (UX-DR7 / DESIGN Layout), the sections separated by `spacing.5`.
+///
+/// The Recent strip (AC#5/#6) reads `context.watch<RecentsController>().recents`
+/// (the app's one writable surface, AD-5/AD-6): newest-first `RecentTile`s that
+/// reopen `ResultScreen` on tap (moving that opponent to the front on return via
+/// the controller notify), or the honest [EmptyRecents] line when there's no
+/// history — with the grid fully populated below either way. The remaining a11y/
+/// motion polish (≥44pt targets, `Semantics`, dynamic-type) is Story 3.8.
 ///
 /// [pokemon] is already-resolved data injected from the composition root
 /// (`main()`) — the UI never queries the DB (AD-6). So there is NO
@@ -58,6 +70,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<CartridgeColors>()!;
+
+    // The recents strip data (AC#5) — `watch` so a `recordView` notify (from the
+    // pushed ResultScreen on return) rebuilds Home and floats that opponent to
+    // the front. Newest-first, already resolved to display items (AD-6).
+    final recents = context.watch<RecentsController>().recents;
 
     // Filter is a pure derivation of (injected list + query) — never cached,
     // never mutating `widget.pokemon`. FOLDED substring on `name` only (AC#5):
@@ -106,8 +123,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 controller: _controller,
                 onChanged: (value) => setState(() => _query = value),
               ),
-              // s5 separates the search bar from the grid (DESIGN Layout:
-              // spacing.5–6 separate major sections, search → grid).
+              // s5 separates search → recent (DESIGN Layout: spacing.5–6 separate
+              // major sections). The recent strip is a distinct, minor section.
+              const SizedBox(height: CartridgePhysics.s5),
+              // Recent strip (AC#5) OR the honest empty state (AC#6). A fixed-
+              // height section that never steals the grid's vertical space — the
+              // grid keeps the Expanded below.
+              recents.isEmpty
+                  ? const EmptyRecents()
+                  : _recentStrip(recents),
               const SizedBox(height: CartridgePhysics.s5),
               Expanded(
                 child: noMatch
@@ -144,14 +168,57 @@ class _HomeScreenState extends State<HomeScreen> {
   /// with no DB access (AD-6/NFR2).
   Widget _tappableTile(PokemonListItem item) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ResultScreen(opponent: item, chart: widget.chart),
-        ),
-      ),
+      onTap: () => _openResult(item),
       child: _tile(item),
     );
   }
+
+  /// The single Home → Result push, SHARED by grid tiles and recent tiles (AC#5)
+  /// so both open the same [ResultScreen] with the same injected [chart]. A
+  /// recent-tile tap therefore re-records the opponent (Result records on mount),
+  /// floating it to the front of the strip on return (AD-6).
+  void _openResult(PokemonListItem item) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResultScreen(opponent: item, chart: widget.chart),
+      ),
+    );
+  }
+
+  /// The horizontal Recent strip: a fixed-height, horizontally-scrolling row of
+  /// newest-first [RecentTile]s (AC#5). Fixed height so it never consumes the
+  /// grid's vertical space; on a narrow screen it scrolls sideways, never wraps.
+  Widget _recentStrip(List<PokemonListItem> recents) {
+    return SizedBox(
+      height: _recentStripHeight,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        itemCount: recents.length,
+        separatorBuilder: (_, _) =>
+            const SizedBox(width: CartridgePhysics.s3),
+        itemBuilder: (context, i) {
+          final item = recents[i];
+          return SizedBox(
+            width: _recentTileWidth,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openResult(item),
+              child: RecentTile(item),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Strip height = 64px sprite + s1 gap + one name line, with headroom so the
+  /// name never clips before the Story 3.8 dynamic-type pass.
+  static const double _recentStripHeight = 92;
+
+  /// Each recent tile's fixed width — a touch wider than the 64px sprite so short
+  /// names center and long ones ellipsize tidily.
+  static const double _recentTileWidth = 76;
 
   /// One grid cell. A base form (`formLabel == null`) is the bare Story 3.1
   /// [SpriteTile] — no Stack, no badge. A typing-distinct form overhangs a
