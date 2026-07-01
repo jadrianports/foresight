@@ -60,10 +60,15 @@ class FormBadge extends StatelessWidget {
         ],
       ),
       child: Text(
-        // Display-up-cased only (AC#2). maxLines: 1 is the cheap accessibility
+        // Display-up-cased only (AC#2). Single line: softWrap:false stops a
+        // two-word label (e.g. "Mega X") word-wrapping at the space and losing
+        // the trailing word under a narrow constraint (maxLines:1 alone would
+        // silently render "MEGA" — an AC#2 verbatim-label violation). The chip
+        // sizes to the full label. maxLines:1 is the cheap accessibility
         // baseline — the scaled-badge reflow/no-clip audit is Story 3.8.
         label.toUpperCase(),
         style: CartridgeTypography.badge.copyWith(color: colors.ink),
+        softWrap: false,
         maxLines: 1,
       ),
     );
