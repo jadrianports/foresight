@@ -45,6 +45,9 @@ class CartridgePhysics {
   /// Standard ink border width.
   static const double borderWidth = 3;
 
+  /// Small-element border width — type chips + badges (DESIGN type-chip "2px").
+  static const double borderWidthChip = 2;
+
   /// Emphasised border width — the RISKY row + honest banner only.
   static const double borderWidthRisky = 4;
 

@@ -1,19 +1,35 @@
-// Scaffold smoke test (Story 1.1): the placeholder app builds and renders the
-// bundled-font wordmark + subline. Real tests arrive with the engine (Epic 2).
+// App-shell build test (updated for Story 3.1): ForesightApp now requires the
+// injected dex and shows the sprite grid (the temporary scaffold-check screen is
+// gone). Pump a small fake list and assert the wordmark + an injected tile
+// render. The degrade path and grid behavior have dedicated tests in test/ui/.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:foresight/app.dart';
+import 'package:foresight/data/pokemon_queries.dart';
 
 void main() {
-  testWidgets('Foresight scaffold renders wordmark and subline', (tester) async {
+  testWidgets('ForesightApp builds Home with the wordmark and injected tiles',
+      (tester) async {
     // Mirror main(): never reach for the network during tests (AD-1).
     GoogleFonts.config.allowRuntimeFetching = false;
 
-    await tester.pumpWidget(const ForesightApp());
+    final fakeDex = <PokemonListItem>[
+      PokemonListItem(
+        id: 1,
+        name: 'Bulbasaur',
+        formLabel: null,
+        spritePath: 'assets/sprites/__nope__.png',
+        types: ['grass', 'poison'],
+      ),
+    ];
 
-    expect(find.text('FORESIGHT'), findsOneWidget);
-    expect(find.textContaining('fonts bundled'), findsOneWidget);
+    await tester.pumpWidget(ForesightApp(pokemon: fakeDex));
+    await tester.pump();
+
+    // Wordmark is rich text ("FORESIGHT" + a red "." accent) — match by substring.
+    expect(find.textContaining('FORESIGHT'), findsOneWidget);
+    expect(find.text('Bulbasaur'), findsOneWidget);
   });
 }
