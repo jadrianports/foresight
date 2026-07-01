@@ -16,6 +16,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:foresight/data/pokemon_queries.dart';
 import 'package:foresight/theme/cartridge_theme.dart';
 import 'package:foresight/ui/home_screen.dart';
+import 'package:foresight/ui/widgets/form_badge.dart';
 import 'package:foresight/ui/widgets/sprite_tile.dart';
 import 'package:foresight/ui/widgets/type_chip.dart';
 
@@ -112,6 +113,35 @@ final _foldDex = <PokemonListItem>[
     formLabel: null,
     spritePath: 'assets/sprites/__nope_772__.png',
     types: ['normal'],
+  ),
+];
+
+/// Story 3.3 badge fixture: a base form (`formLabel: null` → NO badge), an
+/// `Alola` form, and — crucially — a `Hisui` form. Hisui is one of the two DB
+/// labels the epic/DESIGN never name (only 5 of the 7 are listed); including it
+/// locks AC#3 so a naive 5-label enum/whitelist would drop it and fail the
+/// count/text assertions below. Bogus sprite paths hit the degrade path — fine.
+final _badgeDex = <PokemonListItem>[
+  PokemonListItem(
+    id: 38,
+    name: 'Ninetales',
+    formLabel: null,
+    spritePath: 'assets/sprites/__nope_38__.png',
+    types: ['fire'],
+  ),
+  PokemonListItem(
+    id: 10104,
+    name: 'Ninetales',
+    formLabel: 'Alola',
+    spritePath: 'assets/sprites/__nope_10104__.png',
+    types: ['ice', 'fairy'],
+  ),
+  PokemonListItem(
+    id: 10229,
+    name: 'Zoroark',
+    formLabel: 'Hisui',
+    spritePath: 'assets/sprites/__nope_10229__.png',
+    types: ['normal', 'ghost'],
   ),
 ];
 
@@ -250,6 +280,69 @@ void main() {
     expect(find.byType(TypeChip), findsNWidgets(2));
     expect(find.text('GRASS'), findsOneWidget);
     expect(find.text('POISON'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  // ----- Story 3.3: alternate-form badged tiles -----
+
+  testWidgets('AC#1/#2/#5: an alt form renders a FormBadge with up-cased text',
+      (tester) async {
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _badgeDex)));
+    await tester.pump();
+
+    // The Alolan Ninetales carries an ALOLA badge — up-cased for display, never a
+    // composed "Alolan Ninetales" name (the name column stays 'Ninetales').
+    expect(find.text('ALOLA'), findsOneWidget);
+    expect(find.byType(FormBadge), findsNWidgets(2)); // Alola + Hisui
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('AC#1: a base-only dex renders no FormBadge', (tester) async {
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _fakeDex)));
+    await tester.pump();
+
+    // Every _fakeDex item is a base form (formLabel: null) → zero badges.
+    expect(find.byType(FormBadge), findsNothing);
+  });
+
+  testWidgets(
+      'AC#3: badge count tracks the data, no whitelist — Hisui/Paldea render',
+      (tester) async {
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _badgeDex)));
+    await tester.pump();
+
+    // Badge count == number of non-null-formLabel items, and the un-named-by-the-
+    // epic 'Hisui' label paints — a 5-label enum would drop it and fail here.
+    final badged = _badgeDex.where((p) => p.formLabel != null).length;
+    expect(find.byType(FormBadge), findsNWidgets(badged));
+    expect(find.text('HISUI'), findsOneWidget);
+  });
+
+  testWidgets('AC#8/#10d: the badge overlay never skews SpriteTile counts',
+      (tester) async {
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _badgeDex)));
+    await tester.pump();
+
+    // One SpriteTile per item (base + 2 badged) — the Stack wraps, not adds, a
+    // tile. Filtering by the shared name still keeps both Ninetales, one badged.
+    expect(find.byType(SpriteTile), findsNWidgets(_badgeDex.length));
+
+    await tester.enterText(find.byType(TextField), 'nine');
+    await tester.pump();
+    expect(find.byType(SpriteTile), findsNWidgets(2));
+    expect(find.byType(FormBadge), findsOneWidget); // only the Alolan one
+    expect(find.text('ALOLA'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FormBadge in isolation up-cases a multi-word label, no throw',
+      (tester) async {
+    await tester.pumpWidget(_host(
+      const Scaffold(body: Center(child: FormBadge('Mega X'))),
+    ));
+    await tester.pump();
+
+    expect(find.text('MEGA X'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

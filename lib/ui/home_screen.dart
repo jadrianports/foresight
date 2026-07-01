@@ -4,6 +4,7 @@ import '../data/pokemon_queries.dart';
 import '../theme/cartridge_colors.dart';
 import '../theme/cartridge_physics.dart';
 import '../theme/cartridge_typography.dart';
+import 'widgets/form_badge.dart';
 import 'widgets/search_field.dart';
 import 'widgets/sprite_tile.dart';
 
@@ -115,13 +116,36 @@ class _HomeScreenState extends State<HomeScreen> {
                           childAspectRatio: 0.82,
                         ),
                         itemCount: visible.length,
-                        itemBuilder: (context, i) => SpriteTile(visible[i]),
+                        itemBuilder: (context, i) => _tile(visible[i]),
                       ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// One grid cell. A base form (`formLabel == null`) is the bare Story 3.1
+  /// [SpriteTile] — no Stack, no badge. A typing-distinct form overhangs a
+  /// [FormBadge] on the tile's top-right via a `Clip.none` `Stack` so the badge
+  /// spills 3px into the s3 gutter (AC#1/#5/#7). We COMPOSE — [SpriteTile] is
+  /// untouched (AC#7); the badge text is the row's `formLabel` verbatim, never
+  /// slug-derived (AD-4). The overlay rides the already-filtered `visible` list,
+  /// so it's automatically additive to search (AC#8).
+  Widget _tile(PokemonListItem item) {
+    final label = item.formLabel;
+    if (label == null) return SpriteTile(item);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SpriteTile(item),
+        Positioned(
+          top: -CartridgePhysics.badgeOverhang,
+          right: -CartridgePhysics.badgeOverhang,
+          child: FormBadge(label),
+        ),
+      ],
     );
   }
 }

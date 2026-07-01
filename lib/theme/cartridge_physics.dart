@@ -68,6 +68,12 @@ class CartridgePhysics {
   /// Small-element softening (alias of the tile radius).
   static const double radiusSm = 2;
 
+  /// How far the form badge overhangs the sprite tile's top-right corner
+  /// (DESIGN components.form-badge "top-right corner, overhanging -3px"). Applied
+  /// negated in a `Clip.none` `Stack` — the badge spills into the grid's s3 (12px)
+  /// inter-cell gutter, so 3px never collides with a neighbour.
+  static const double badgeOverhang = 3;
+
   // ----- spacing (DESIGN spacing — 4px base scale, theme-independent) -----
 
   static const double s1 = 4;
