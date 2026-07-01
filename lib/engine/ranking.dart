@@ -80,8 +80,19 @@ class RankedPick {
 ///   - **GOOD**  — at least one hit `<= 0.5` (resists ≥ 1) with the rest neutral and no
 ///                 weakness (the `>= 2.0` case is already excluded above).
 ///   - **EVEN**  — every hit `== 1.0` (neutral to all) — the exhaustive fall-through.
+///
+/// Fail LOUD on off-contract input instead of silently mislabeling (AD-7): an empty `hits`
+/// list makes `every(<= 0.5)` vacuously true → SAFE (safest, from zero data), and an
+/// out-of-domain multiplier (NaN, or a bad chart cell like `1.5`) falls through to EVEN —
+/// either is silently-wrong battle advice. `stabRiskFor` guarantees 1–2 hits each in
+/// `{0, 0.5, 1, 2}`; if that ever slips, throw rather than guess.
 Tier _classify(StabRisk risk) {
   final multipliers = [for (final hit in risk.hits) hit.multiplier];
+  if (multipliers.isEmpty ||
+      multipliers.any((m) => m != 0.0 && m != 0.5 && m != 1.0 && m != 2.0)) {
+    throw StateError(
+        '_classify: off-contract StabRisk.hits $multipliers (expected 1–2 of {0, 0.5, 1, 2})');
+  }
   if (multipliers.any((m) => m >= 2.0)) return Tier.risky;
   if (multipliers.every((m) => m <= 0.5)) return Tier.safe;
   if (multipliers.any((m) => m <= 0.5)) return Tier.good;
