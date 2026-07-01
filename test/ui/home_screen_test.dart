@@ -87,6 +87,34 @@ final _searchDex = <PokemonListItem>[
   ),
 ];
 
+/// Story 3.2 review fixture: diacritic + punctuation names (verified in the
+/// bundled DB). The filter folds both sides, so accent-/punctuation-free queries
+/// must still reach these. Kept SEPARATE from `_searchDex` so the count-based
+/// full-grid assertions there stay valid under the lazy `GridView.builder`.
+final _foldDex = <PokemonListItem>[
+  PokemonListItem(
+    id: 669,
+    name: 'Flabébé',
+    formLabel: null,
+    spritePath: 'assets/sprites/__nope_669__.png',
+    types: ['fairy'],
+  ),
+  PokemonListItem(
+    id: 122,
+    name: 'Mr. Mime',
+    formLabel: null,
+    spritePath: 'assets/sprites/__nope_122__.png',
+    types: ['psychic', 'fairy'],
+  ),
+  PokemonListItem(
+    id: 772,
+    name: 'Type: Null',
+    formLabel: null,
+    spritePath: 'assets/sprites/__nope_772__.png',
+    types: ['normal'],
+  ),
+];
+
 const _noResultsCopy = 'No Pokémon match that. Check the spelling?';
 
 /// Wrap a widget in the Cartridge theme so the CartridgeColors extension resolves.
@@ -172,6 +200,32 @@ void main() {
     expect(find.text(_noResultsCopy), findsOneWidget);
     expect(find.byType(SpriteTile), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'Review: folded match — accent-/punctuation-free query reaches Flabébé, '
+      'Mr. Mime, Type: Null', (tester) async {
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _foldDex)));
+    await tester.pump();
+
+    // No accent typed → still finds Flabébé (é folded to e).
+    await tester.enterText(find.byType(TextField), 'flabebe');
+    await tester.pump();
+    expect(find.text('Flabébé'), findsOneWidget);
+    expect(find.byType(SpriteTile), findsNWidgets(1));
+
+    // No period, space instead of "." → still finds Mr. Mime.
+    await tester.enterText(find.byType(TextField), 'mr mime');
+    await tester.pump();
+    expect(find.text('Mr. Mime'), findsOneWidget);
+    expect(find.byType(SpriteTile), findsNWidgets(1));
+
+    // No colon → still finds Type: Null.
+    await tester.enterText(find.byType(TextField), 'type null');
+    await tester.pump();
+    expect(find.text('Type: Null'), findsOneWidget);
+    expect(find.byType(SpriteTile), findsNWidgets(1));
     expect(tester.takeException(), isNull);
   });
 

@@ -50,15 +50,18 @@ class _HomeScreenState extends State<HomeScreen> {
     final colors = Theme.of(context).extension<CartridgeColors>()!;
 
     // Filter is a pure derivation of (injected list + query) — never cached,
-    // never mutating `widget.pokemon`. Case-insensitive SUBSTRING on `name`
-    // only (AC#5); trimmed so trailing spaces don't zero the grid. Empty /
-    // whitespace-only query ⇒ the full un-filtered grid (AC#2).
-    final query = _query.trim().toLowerCase();
+    // never mutating `widget.pokemon`. FOLDED substring on `name` only (AC#5):
+    // `_fold` case-folds, strips diacritics, and drops non-alphanumerics on both
+    // sides, so accent-/punctuation-free queries still reach names that carry
+    // them (`flabebe`→Flabébé, `mr mime`→Mr. Mime, `type null`→Type: Null,
+    // `nidoran`→Nidoran♀/♂). Folding also absorbs the trim — a whitespace-only
+    // query folds to '' ⇒ the full un-filtered grid (AC#2).
+    final query = _fold(_query);
     final visible = query.isEmpty
         ? widget.pokemon
         : [
             for (final p in widget.pokemon)
-              if (p.name.toLowerCase().contains(query)) p,
+              if (_fold(p.name).contains(query)) p,
           ];
     // The no-results line only appears once the user has typed something that
     // matched nothing — an empty query is always "full grid" (AC#2/#3), never
@@ -121,6 +124,37 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+/// Fold a name or query for forgiving matching (Story 3.2 review): lowercase,
+/// map common Latin-1 diacritics to their ASCII base, and drop every
+/// non-alphanumeric character (spaces, `. ' : -`, the ♀/♂ symbols). Applied to
+/// BOTH the dex name and the query so an accent-/punctuation-free query still
+/// reaches names that carry them — otherwise `mr mime` / `flabebe` / `type null`
+/// fall to the no-results line for Pokémon that exist.
+///
+/// Dependency-free by design (NFR6): dart:core has no Unicode NFD normalize, and
+/// the bundled dex's only diacritic is `é` — the small fold map covers it with
+/// headroom. A *decomposed* accent (base + combining mark) also folds correctly:
+/// the combining mark is non-alphanumeric and is dropped, leaving the base.
+String _fold(String s) {
+  const deaccent = <String, String>{
+    'á': 'a', 'à': 'a', 'â': 'a', 'ä': 'a', 'ã': 'a', 'å': 'a',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+    'ó': 'o', 'ò': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
+    'ñ': 'n', 'ç': 'c',
+  };
+  final buf = StringBuffer();
+  for (final ch in s.toLowerCase().split('')) {
+    final mapped = deaccent[ch] ?? ch;
+    final code = mapped.codeUnitAt(0);
+    final isDigit = code >= 0x30 && code <= 0x39; // 0-9
+    final isAlpha = code >= 0x61 && code <= 0x7a; // a-z (already lowercased)
+    if (isDigit || isAlpha) buf.write(mapped);
+  }
+  return buf.toString();
 }
 
 /// AC#3: when a typed query matches nothing, the grid is replaced by ONE honest
