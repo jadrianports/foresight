@@ -56,7 +56,12 @@ class SettingsController extends ChangeNotifier {
   /// crash the app; it just falls back to the sensible default. (AD-7 loud-throw
   /// is reserved for DB/chart violations.)
   static SortMode _readSortMode(SharedPreferences prefs) {
-    return prefs.getString(_kSortModeKey) == SortMode.hardestHitting.name
+    // Read via `get` (Object?), NOT `getString` — the latter casts the stored
+    // value to String and THROWS on a wrong-type value (int/bool/etc.), which
+    // would crash launch inside this constructor. `get` lets any non-matching
+    // value (wrong type, corrupt string, or null) fall through to the default,
+    // honoring the "a garbage value should never crash the app" contract above.
+    return prefs.get(_kSortModeKey) == SortMode.hardestHitting.name
         ? SortMode.hardestHitting
         : SortMode.safestFirst;
   }

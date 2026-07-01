@@ -36,6 +36,14 @@ void main() {
       final c = await controllerFrom({'sortMode': 'garbage'});
       expect(c.sortMode, SortMode.safestFirst);
     });
+
+    test('a WRONG-TYPE stored value degrades to safestFirst instead of crashing '
+        'launch (read via get, not getString)', () async {
+      // A non-string under the key (legacy collision / on-disk corruption) must
+      // not throw in the constructor — getString would cast-throw; get does not.
+      final c = await controllerFrom({'sortMode': 1});
+      expect(c.sortMode, SortMode.safestFirst);
+    });
   });
 
   group('setSortMode persist + notify (AC#2/#8/#10a)', () {

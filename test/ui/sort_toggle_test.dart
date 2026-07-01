@@ -10,12 +10,20 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:foresight/engine/ranking.dart';
 import 'package:foresight/theme/cartridge_colors.dart';
+import 'package:foresight/theme/cartridge_physics.dart';
 import 'package:foresight/theme/cartridge_theme.dart';
 import 'package:foresight/ui/widgets/sort_toggle.dart';
 
 Widget _host(Widget child) => MaterialApp(
       theme: buildLightTheme(),
       home: Scaffold(body: Center(child: child)),
+    );
+
+// Replicates ResultScreen: the toggle lives in a ListView (unbounded main
+// axis). A Center host masks the divider collapse; a ListView reproduces it.
+Widget _listHost(Widget child) => MaterialApp(
+      theme: buildLightTheme(),
+      home: Scaffold(body: ListView(children: [child])),
     );
 
 void main() {
@@ -62,5 +70,24 @@ void main() {
     final inactive = tester.widget<Text>(find.text('SAFEST FIRST'));
     expect(active.style!.color, colors.paper);
     expect(inactive.style!.color, colors.inkMuted);
+  });
+
+  testWidgets('the 3px ink divider keeps a non-zero height inside a ListView '
+      '(regression: it must not collapse under unbounded vertical constraints)',
+      (tester) async {
+    await tester.pumpWidget(_listHost(
+      SortToggle(mode: SortMode.safestFirst, onChanged: (_) {}),
+    ));
+    await tester.pump();
+
+    // The divider is the only Container in the tree with a null child.
+    final divider = find.byWidgetPredicate(
+      (w) => w is Container && w.child == null,
+    );
+    expect(divider, findsOneWidget);
+    final size = tester.getSize(divider);
+    expect(size.width, CartridgePhysics.borderWidth);
+    expect(size.height, greaterThan(0),
+        reason: 'divider collapsed to 0 height — it renders invisibly');
   });
 }

@@ -38,14 +38,23 @@ class SortToggle extends StatelessWidget {
         border: CartridgePhysics.cartridgeBorder(colors.ink),
         boxShadow: [CartridgePhysics.cartridgeShadow(colors.shadow)],
       ),
-      child: Row(
-        children: [
-          Expanded(child: _segment(colors, SortMode.safestFirst, 'SAFEST FIRST')),
-          // 3px ink divider between the two segments (DESIGN sort-toggle).
-          Container(width: CartridgePhysics.borderWidth, color: colors.ink),
-          Expanded(
-              child: _segment(colors, SortMode.hardestHitting, 'HARDEST HITTING')),
-        ],
+      // IntrinsicHeight + stretch so the divider matches the segments' height.
+      // Without it, the childless divider Container collapses to height 0 under
+      // the unbounded vertical constraints of ResultScreen's ListView, and the
+      // 3px ink divider AC#7 requires renders invisibly.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+                child: _segment(colors, SortMode.safestFirst, 'SAFEST FIRST')),
+            // 3px ink divider between the two segments (DESIGN sort-toggle).
+            Container(width: CartridgePhysics.borderWidth, color: colors.ink),
+            Expanded(
+                child:
+                    _segment(colors, SortMode.hardestHitting, 'HARDEST HITTING')),
+          ],
+        ),
       ),
     );
   }
