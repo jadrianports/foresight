@@ -12,9 +12,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:foresight/data/pokemon_queries.dart';
 import 'package:foresight/engine/type_chart.dart';
+import 'package:foresight/settings_controller.dart';
 import 'package:foresight/theme/cartridge_theme.dart';
 import 'package:foresight/ui/home_screen.dart';
 import 'package:foresight/ui/result_screen.dart';
@@ -157,13 +160,27 @@ final _badgeDex = <PokemonListItem>[
 const _noResultsCopy = 'No Pokémon match that. Check the spelling?';
 
 /// Wrap a widget in the Cartridge theme so the CartridgeColors extension resolves.
-Widget _host(Widget child) => MaterialApp(
-      theme: buildLightTheme(),
-      darkTheme: buildDarkTheme(),
-      home: child,
+/// Story 3.6: the pushed ResultScreen reads the root SettingsController
+/// (context.watch), so the host provides one ABOVE MaterialApp — its Navigator's
+/// pushed routes resolve it. Seeded per-test in setUp over mocked prefs.
+late SettingsController _settings;
+
+Widget _host(Widget child) => ChangeNotifierProvider<SettingsController>.value(
+      value: _settings,
+      child: MaterialApp(
+        theme: buildLightTheme(),
+        darkTheme: buildDarkTheme(),
+        home: child,
+      ),
     );
 
 void main() {
+  setUp(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    _settings = SettingsController(await SharedPreferences.getInstance());
+  });
+
   setUpAll(() {
     // Mirror main(): never reach for the network during tests (AD-1).
     GoogleFonts.config.allowRuntimeFetching = false;

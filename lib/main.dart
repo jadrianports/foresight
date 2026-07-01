@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'data/foresight_database.dart';
 import 'data/pokemon_queries.dart';
+import 'settings_controller.dart';
 
 Future<void> main() async {
   // Needed before touching the asset bundle / plugins ahead of runApp.
@@ -33,5 +35,12 @@ Future<void> main() async {
   // same native splash as `allPokemon`.
   final chart = await loadTypeChart(db);
 
-  runApp(ForesightApp(pokemon: pokemon, chart: chart));
+  // AD-5/AD-6 / NFR2: the sort preference persists in shared_preferences (never
+  // the DB). Await the ONE async getInstance() here under the same native splash
+  // as the reads above, then hand the hydrated instance to SettingsController so
+  // its reads/writes are synchronous — no spinner, no FutureBuilder (Story 3.6).
+  final prefs = await SharedPreferences.getInstance();
+  final settings = SettingsController(prefs);
+
+  runApp(ForesightApp(pokemon: pokemon, chart: chart, settings: settings));
 }

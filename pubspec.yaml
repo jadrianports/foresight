@@ -42,7 +42,7 @@ dependencies:
   crypto: ^3.0.7              # SHA-256 to mirror schema_version.py byte-for-byte (AD-3 hash assert)
   path: ^1.9.1               # join/dirname for the DB copy path (already transitive via sqflite;
                              # declared so we can import it directly — NOT path_provider)
-  # provider — state ceiling (AD-6); first needed in Epic 3. Add then, not now.
+  provider: ^6.1.5             # state ceiling (AD-6); first needed in Epic 3 (Story 3.6 sort toggle)
 
 dev_dependencies:
   flutter_test:
