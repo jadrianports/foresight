@@ -41,9 +41,13 @@ class FormBadge extends StatelessWidget {
 
     // Announce the form once (AC#5c): "Alola form", "Mega X form". The visual
     // chip is up-cased for display only; the spoken label uses the verbatim
-    // `form_label` (AD-4).
+    // `form_label` (AD-4). `excludeSemantics` silences the inner up-cased `Text`
+    // ("ALOLA") so the form is announced ONCE via this label, not twice — matching
+    // the tile/segment/row wrappers (the child `Text` stays in the tree so
+    // `find.text` still passes).
     return Semantics(
       label: '$label form',
+      excludeSemantics: true,
       child: Container(
         // Snug: it's a corner overhang, not a full row — s1 horizontal, a hair
         // vertical (Task 1 spec) keeps the pixel chip tight.

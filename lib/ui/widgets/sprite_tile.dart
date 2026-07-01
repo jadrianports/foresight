@@ -54,12 +54,20 @@ class SpriteTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: CartridgePhysics.s1),
-          Text(
-            item.name,
-            style: CartridgeTypography.tileName.copyWith(color: colors.ink),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          // Story 3.8 AC#7 / Task 8: the grid cell is a FIXED-aspect frame
+          // (childAspectRatio), so the name's scale is CLAMPED — it grows with the
+          // OS text setting but can't push the sprite+name Column past the cell and
+          // throw a RenderFlex overflow above ~2×. Mirrors RecentTile's fixed-frame
+          // clamp; maxLines:2 + ellipsis still handles the horizontal axis.
+          MediaQuery.withClampedTextScaling(
+            maxScaleFactor: CartridgePhysics.maxPixelTextScale,
+            child: Text(
+              item.name,
+              style: CartridgeTypography.tileName.copyWith(color: colors.ink),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),

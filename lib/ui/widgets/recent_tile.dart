@@ -44,7 +44,7 @@ class RecentTile extends StatelessWidget {
           ),
         ),
         const SizedBox(height: CartridgePhysics.s1),
-        // Story 3.8 AC#7: this tile lives in a FIXED-height strip (92px), so the
+        // Story 3.8 AC#7: this tile lives in a FIXED-height strip (96px), so the
         // name's scale is CLAMPED (the documented fixed-frame option) — it grows
         // with the OS setting but can't push the sprite+name Column past the
         // strip and clip. maxLines:1 ellipsis handles the horizontal axis.
