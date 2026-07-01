@@ -23,8 +23,11 @@ class EmptyRecents extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<CartridgeColors>()!;
 
+    // foregroundPainter (not painter) so the dashes paint OVER the child's
+    // opaque `surface` fill — a background `painter:` would be drawn first and
+    // then hidden behind the fill, leaving the border invisible.
     return CustomPaint(
-      painter: _DashedRectPainter(color: colors.ink),
+      foregroundPainter: _DashedRectPainter(color: colors.ink),
       child: Container(
         width: double.infinity,
         color: colors.surface,

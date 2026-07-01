@@ -70,6 +70,18 @@ class RecentsController extends ChangeNotifier {
     if (_recents.length > 10) _recents.removeRange(10, _recents.length);
     notifyListeners();
 
-    await recordRecentView(_db, opponent.id, _clock());
+    // The durable follow-up. `recent_views` is a convenience list, NOT an AD-7
+    // loud-throw data contract — so a persistence failure (a transient lock, a
+    // disk fault) must not become an uncaught async error or disrupt the session.
+    // The in-memory list + notify already happened, so the strip stays correct
+    // now; on the (rare) failure we log and no-op, and the next successful
+    // `recordView` re-persists. The only cost is losing this one row across a
+    // cold restart in that rare case.
+    try {
+      await recordRecentView(_db, opponent.id, _clock());
+    } catch (error, stackTrace) {
+      debugPrint('RecentsController: failed to persist recent view '
+          '${opponent.id} — $error\n$stackTrace');
+    }
   }
 }
