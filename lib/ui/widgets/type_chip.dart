@@ -53,9 +53,16 @@ class TypeChip extends StatelessWidget {
           ),
         ],
       ),
-      child: Text(
-        slug.toUpperCase(),
-        style: CartridgeTypography.badge.copyWith(color: typeChipTextColor(slug)),
+      // Story 3.8 AC#7: CLAMP the pixel label's scale so a large OS text setting
+      // grows the chip but can't overflow a tile/Wrap frame (was deferred at
+      // :16-18). A cap, not an opt-out — it still scales up to maxPixelTextScale.
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: CartridgePhysics.maxPixelTextScale,
+        child: Text(
+          slug.toUpperCase(),
+          style:
+              CartridgeTypography.badge.copyWith(color: typeChipTextColor(slug)),
+        ),
       ),
     );
   }

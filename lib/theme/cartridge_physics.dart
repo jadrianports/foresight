@@ -68,6 +68,33 @@ class CartridgePhysics {
   /// Small-element softening (alias of the tile radius).
   static const double radiusSm = 2;
 
+  // ----- accent-bar widths (DESIGN result-row / result-row-top-pick) -----
+
+  /// Standard left tier accent bar (DESIGN result-row "8px").
+  static const double accentBarWidth = 8;
+
+  /// The #1 SAFE top-pick row's WIDER accent bar (DESIGN `result-row-top-pick`
+  /// "Wider accent bar (10px)"; Story 3.8 AC#1). Only ever the SAFE lead.
+  static const double accentBarWidthTopPick = 10;
+
+  /// The RISKY row's wider striped accent bar (DESIGN "loudest" — Story 3.4 AC#5).
+  static const double accentBarWidthRisky = 12;
+
+  // ----- accessibility floor (Story 3.8 / DESIGN.md:404 / EXPERIENCE.md:94) -----
+
+  /// The minimum interactive-target extent: ≥44pt / 48dp. Only ever GROW a
+  /// target to this — never shrink one down to "just" 48 (Story 3.8 AC#6).
+  static const double minTouchTarget = 48;
+
+  /// The dynamic-type scaling CAP for Press Start 2P pixel strings that sit in
+  /// constrained frames (Story 3.8 AC#7). It is a CAP, NOT an opt-out: pixel text
+  /// still scales up to this factor — the body (Nunito) scales freely, but the
+  /// pixel font clamps here so a scaled badge/chip/multiplier cannot overflow its
+  /// fixed frame. 1.3 is the smallest cap that keeps every pixel string inside
+  /// its frame at the largest OS text setting (proved by the AC#10f max-scale
+  /// no-overflow test on both Home and Result). [review-accessibility.md:66-69]
+  static const double maxPixelTextScale = 1.3;
+
   /// How far the form badge overhangs the sprite tile's top-right corner
   /// (DESIGN components.form-badge "top-right corner, overhanging -3px"). Applied
   /// negated in a `Clip.none` `Stack` — the badge spills into the grid's s3 (12px)

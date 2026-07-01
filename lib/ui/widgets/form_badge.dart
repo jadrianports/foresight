@@ -39,37 +39,48 @@ class FormBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<CartridgeColors>()!;
 
-    return Container(
-      // Snug: it's a corner overhang, not a full row — s1 horizontal, a hair
-      // vertical (Task 1 spec) keeps the pixel chip tight.
-      padding: const EdgeInsets.symmetric(
-        horizontal: CartridgePhysics.s1,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: colors.primaryYellow,
-        border: CartridgePhysics.cartridgeBorder(
-          colors.ink,
-          width: CartridgePhysics.borderWidthChip,
+    // Announce the form once (AC#5c): "Alola form", "Mega X form". The visual
+    // chip is up-cased for display only; the spoken label uses the verbatim
+    // `form_label` (AD-4).
+    return Semantics(
+      label: '$label form',
+      child: Container(
+        // Snug: it's a corner overhang, not a full row — s1 horizontal, a hair
+        // vertical (Task 1 spec) keeps the pixel chip tight.
+        padding: const EdgeInsets.symmetric(
+          horizontal: CartridgePhysics.s1,
+          vertical: 2,
         ),
-        boxShadow: [
-          CartridgePhysics.cartridgeShadow(
-            colors.shadow,
-            offset: CartridgePhysics.offsetSmall,
+        decoration: BoxDecoration(
+          color: colors.primaryYellow,
+          border: CartridgePhysics.cartridgeBorder(
+            colors.ink,
+            width: CartridgePhysics.borderWidthChip,
           ),
-        ],
-      ),
-      child: Text(
-        // Display-up-cased only (AC#2). Single line: softWrap:false stops a
-        // two-word label (e.g. "Mega X") word-wrapping at the space and losing
-        // the trailing word under a narrow constraint (maxLines:1 alone would
-        // silently render "MEGA" — an AC#2 verbatim-label violation). The chip
-        // sizes to the full label. maxLines:1 is the cheap accessibility
-        // baseline — the scaled-badge reflow/no-clip audit is Story 3.8.
-        label.toUpperCase(),
-        style: CartridgeTypography.badge.copyWith(color: colors.ink),
-        softWrap: false,
-        maxLines: 1,
+          boxShadow: [
+            CartridgePhysics.cartridgeShadow(
+              colors.shadow,
+              offset: CartridgePhysics.offsetSmall,
+            ),
+          ],
+        ),
+        // Story 3.8 AC#7 (resolves the 3.3 deferral): CLAMP the pixel-text scale
+        // so a large OS text setting GROWS the badge but can't inflate "MEGA X"
+        // past its overhang. The chip shrink-wraps its content, so with the cap
+        // the whole (single-line) label stays inside — no truncated trailing word.
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: CartridgePhysics.maxPixelTextScale,
+          child: Text(
+            // Display-up-cased only (AC#2). Single line: softWrap:false stops a
+            // two-word label (e.g. "Mega X") word-wrapping at the space and
+            // losing the trailing word under a narrow constraint (maxLines:1
+            // alone would silently render "MEGA" — an AC#2 verbatim violation).
+            label.toUpperCase(),
+            style: CartridgeTypography.badge.copyWith(color: colors.ink),
+            softWrap: false,
+            maxLines: 1,
+          ),
+        ),
       ),
     );
   }

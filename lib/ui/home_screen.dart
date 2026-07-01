@@ -106,17 +106,22 @@ class _HomeScreenState extends State<HomeScreen> {
               // (DESIGN app-title). This is the brand-shout at the top of Home.
               Padding(
                 padding: const EdgeInsets.only(bottom: CartridgePhysics.s4),
-                child: Text.rich(
-                  TextSpan(
-                    text: 'FORESIGHT',
-                    children: [
-                      TextSpan(
-                        text: '.',
-                        style: TextStyle(color: colors.primaryRed),
-                      ),
-                    ],
+                // AC#7: the pixel wordmark CLAMP-scales (grows, never overruns).
+                child: MediaQuery.withClampedTextScaling(
+                  maxScaleFactor: CartridgePhysics.maxPixelTextScale,
+                  child: Text.rich(
+                    TextSpan(
+                      text: 'FORESIGHT',
+                      children: [
+                        TextSpan(
+                          text: '.',
+                          style: TextStyle(color: colors.primaryRed),
+                        ),
+                      ],
+                    ),
+                    style:
+                        CartridgeTypography.appTitle.copyWith(color: colors.ink),
                   ),
-                  style: CartridgeTypography.appTitle.copyWith(color: colors.ink),
                 ),
               ),
               SearchField(
@@ -167,10 +172,27 @@ class _HomeScreenState extends State<HomeScreen> {
   /// The chart carried from `main()` rides along so Result renders synchronously
   /// with no DB access (AD-6/NFR2).
   Widget _tappableTile(PokemonListItem item) {
-    return GestureDetector(
-      onTap: () => _openResult(item),
-      child: _tile(item),
+    // Button role + name label at the TAP wrapper (AC#5a) — a form tile appends
+    // its formLabel. `excludeSemantics` merges the tile into ONE button node, so
+    // the sprite `Image.semanticLabel` and the name `Text` are not announced a
+    // second time (the child `Text` widgets stay in the tree, so `find.text`
+    // still passes). The button role lives here, not baked into `SpriteTile`.
+    return Semantics(
+      button: true,
+      label: _tileSemanticLabel(item),
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: () => _openResult(item),
+        child: _tile(item),
+      ),
     );
+  }
+
+  /// The tile's spoken label: the mon name, plus `" — <formLabel> form"` for a
+  /// typing-distinct form (AC#5a). The `form_label` is used verbatim (AD-4).
+  String _tileSemanticLabel(PokemonListItem item) {
+    final label = item.formLabel;
+    return label == null ? item.name : '${item.name} — $label form';
   }
 
   /// The single Home → Result push, SHARED by grid tiles and recent tiles (AC#5)
@@ -201,10 +223,18 @@ class _HomeScreenState extends State<HomeScreen> {
           final item = recents[i];
           return SizedBox(
             width: _recentTileWidth,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _openResult(item),
-              child: RecentTile(item),
+            // Same button-role + single-announcement treatment as the grid tile
+            // (AC#5a): the merged node speaks the name once, silencing the inner
+            // sprite `Image.semanticLabel`.
+            child: Semantics(
+              button: true,
+              label: _tileSemanticLabel(item),
+              excludeSemantics: true,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _openResult(item),
+                child: RecentTile(item),
+              ),
             ),
           );
         },
@@ -212,9 +242,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Strip height = 64px sprite + s1 gap + one name line, with headroom so the
-  /// name never clips before the Story 3.8 dynamic-type pass.
-  static const double _recentStripHeight = 92;
+  /// Strip height = 64px sprite + s1 gap + one name line, with headroom. The name
+  /// scale is CLAMPED in [RecentTile] (Story 3.8 AC#7), so a large OS text setting
+  /// grows the name but can't push the Column past this height and clip.
+  static const double _recentStripHeight = 96;
 
   /// Each recent tile's fixed width — a touch wider than the 64px sprite so short
   /// names center and long ones ellipsize tidily.

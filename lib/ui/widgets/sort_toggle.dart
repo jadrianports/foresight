@@ -62,23 +62,48 @@ class SortToggle extends StatelessWidget {
   /// One tappable segment. Active → `ink` ground / `paper` label; inactive →
   /// `surface` ground / `inkMuted` label. The label is a plain [Text] with the
   /// VERBATIM DESIGN string so `find.text(...)` matches it exactly.
+  ///
+  /// A11y (Story 3.8): each segment announces a button + SELECTED state (AC#5b —
+  /// the color inversion is invisible to a screen reader) and stands ≥ 48dp tall
+  /// (AC#6 — was ~34px, below the target floor). `excludeSemantics` keeps the
+  /// label `Text` (so `find.text` still passes) while the merged node carries the
+  /// role/state once.
   Widget _segment(CartridgeColors colors, SortMode segmentMode, String label) {
     final active = segmentMode == mode;
-    return GestureDetector(
-      onTap: () => onChanged(segmentMode),
-      child: Container(
-        // The whole box is tappable, not just the glyphs (transparent ≠ null).
-        color: active ? colors.ink : colors.surface,
-        // Comfortable tap height now; the FORMAL ≥44pt audit is Story 3.8.
-        padding: const EdgeInsets.symmetric(
-          vertical: CartridgePhysics.s3,
-          horizontal: CartridgePhysics.s2,
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: CartridgeTypography.badge.copyWith(
-            color: active ? colors.paper : colors.inkMuted,
+    return Semantics(
+      button: true,
+      selected: active,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: () => onChanged(segmentMode),
+        child: ConstrainedBox(
+          // ≥ 48dp tap target (AC#6). IntrinsicHeight + stretch (parent) then
+          // grows BOTH segments and the divider to this floor.
+          constraints: const BoxConstraints(
+            minHeight: CartridgePhysics.minTouchTarget,
+          ),
+          child: Container(
+            // The whole box is tappable, not just the glyphs (transparent ≠ null),
+            // and the label centers vertically in the taller target.
+            alignment: Alignment.center,
+            color: active ? colors.ink : colors.surface,
+            padding: const EdgeInsets.symmetric(
+              vertical: CartridgePhysics.s2,
+              horizontal: CartridgePhysics.s2,
+            ),
+            // The pixel label CLAMP-scales and may wrap (never clip) at large OS
+            // text sizes (AC#7).
+            child: MediaQuery.withClampedTextScaling(
+              maxScaleFactor: CartridgePhysics.maxPixelTextScale,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: CartridgeTypography.badge.copyWith(
+                  color: active ? colors.paper : colors.inkMuted,
+                ),
+              ),
+            ),
           ),
         ),
       ),

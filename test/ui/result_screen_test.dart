@@ -24,6 +24,7 @@ import 'package:foresight/ui/result_screen.dart';
 import 'package:foresight/ui/widgets/honest_banner.dart';
 import 'package:foresight/ui/widgets/sort_toggle.dart';
 import 'package:foresight/ui/widgets/tier_result_row.dart';
+import 'package:foresight/ui/widgets/top_pick_halo.dart';
 import 'package:foresight/ui/widgets/type_chip.dart';
 
 import '../recents_test_support.dart';
@@ -48,7 +49,20 @@ late RecentsController _recents;
 /// Provider ancestors + themed MaterialApp host for a directly-pumped
 /// ResultScreen — both the SettingsController (sort, watched) and the
 /// RecentsController (recents, read on mount) resolve above MaterialApp.
-Widget _host(Widget child, SettingsController settings) => MultiProvider(
+///
+/// Story 3.8 HARNESS GATE (AC#10g): the host injects `disableAnimations: true` by
+/// default, so the #1-SAFE `TopPickHalo` pulse NEVER runs and the existing
+/// `pumpAndSettle` tests (Rock/Dark leads with Fighting = SAFE #1) still settle.
+/// The one pulse test passes `allowMotion: true` and drives frames with
+/// `tester.pump(Duration)` — never `pumpAndSettle` (a repeating controller never
+/// quiesces). [textScaler] lets the AC#10f no-clip test pump at 2× OS scale.
+Widget _host(
+  Widget child,
+  SettingsController settings, {
+  bool allowMotion = false,
+  TextScaler? textScaler,
+}) =>
+    MultiProvider(
       providers: [
         ChangeNotifierProvider<SettingsController>.value(value: settings),
         ChangeNotifierProvider<RecentsController>.value(value: _recents),
@@ -57,6 +71,12 @@ Widget _host(Widget child, SettingsController settings) => MultiProvider(
         theme: buildLightTheme(),
         darkTheme: buildDarkTheme(),
         home: child,
+        builder: (context, home) {
+          var data =
+              MediaQuery.of(context).copyWith(disableAnimations: !allowMotion);
+          if (textScaler != null) data = data.copyWith(textScaler: textScaler);
+          return MediaQuery(data: data, child: home!);
+        },
       ),
     );
 
@@ -267,5 +287,171 @@ void main() {
     expect(records, 1, reason: 'a toggle rebuild must not re-record');
     expect(find.byType(ResultScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  // ----- Story 3.8: top-pick treatment, motion gate, semantics, targets, scale -----
+
+  testWidgets(
+      'AC#1/#10a: a SAFE lead gets exactly one #1 marker + TopPickHalo on the '
+      'top row', (tester) async {
+    await tester.pumpWidget(_host(
+      ResultScreen(opponent: buildRockDarkOpponent(), chart: buildResultChart()),
+      await _controller(),
+    ));
+    await tester.pumpAndSettle(); // gated (disableAnimations:true) → settles.
+
+    // Exactly one #1 marker, wrapped in exactly one TopPickHalo, and it sits on
+    // the SAFE lead row — above RISKY (rank owns the order).
+    expect(find.text('#1'), findsOneWidget);
+    expect(find.byType(TopPickHalo), findsOneWidget);
+    final markerY = tester.getTopLeft(find.text('#1')).dy;
+    final safeY = tester.getTopLeft(find.text('SAFE')).dy;
+    final riskyY = tester.getTopLeft(find.text('RISKY')).dy;
+    expect((markerY - safeY).abs(), lessThan(40),
+        reason: 'the #1 marker rides the SAFE row');
+    expect(markerY, lessThan(riskyY));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'AC#1/#10a: an all-fragile result (no SAFE lead) gets NO #1 marker and NO '
+      'TopPickHalo', (tester) async {
+    await tester.pumpWidget(_host(
+      ResultScreen(
+          opponent: buildAllFragileOpponent(), chart: buildAllFragileChart()),
+      await _controller(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('#1'), findsNothing);
+    expect(find.byType(TopPickHalo), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'AC#2/#3/#10b: the pulse runs ONLY when motion is allowed; the gated tree '
+      'still shows the static cues', (tester) async {
+    final settings = await _controller();
+
+    // Motion ON: the halo exists and the tree does NOT settle (a repeating pulse
+    // never quiesces) — drive bounded frames, assert no throw. NEVER pumpAndSettle.
+    await tester.pumpWidget(_host(
+      ResultScreen(opponent: buildRockDarkOpponent(), chart: buildResultChart()),
+      settings,
+      allowMotion: true,
+    ));
+    await tester.pump(); // first frame + schedule the record-on-mount callback
+    await tester.pump(const Duration(milliseconds: 700)); // advance the pulse
+    expect(find.byType(TopPickHalo), findsOneWidget);
+    expect(find.text('#1'), findsOneWidget); // static cue present regardless
+    expect(tester.takeException(), isNull);
+
+    // Now GATE the SAME tree (disableAnimations flips true): TopPickHalo's
+    // didChangeDependencies stops the repeating ticker, so the tree settles — and
+    // pumpAndSettle also flushes the record-on-mount DB timer. State is preserved
+    // (same widget types/positions), so initState does NOT re-run (no re-record).
+    // The static cues remain: the top pick still reads via wider bar + #1 + rank.
+    await tester.pumpWidget(_host(
+      ResultScreen(opponent: buildRockDarkOpponent(), chart: buildResultChart()),
+      settings,
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byType(TopPickHalo), findsOneWidget);
+    expect(find.text('#1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'AC#4/#10c: each row exposes ONE merged label; the top pick prefixes '
+      '"Top pick."; the section header is a header', (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(_host(
+      ResultScreen(opponent: buildRockDarkOpponent(), chart: buildResultChart()),
+      await _controller(),
+    ));
+    await tester.pumpAndSettle();
+
+    // The composed row announcement (RegExp = contains, so the "Top pick. "
+    // prefix on the SAFE lead doesn't break the match).
+    expect(
+      find.bySemanticsLabel(
+          RegExp('Fighting, 4 times, SAFE, resists both its STABs')),
+      findsOneWidget,
+    );
+    // The GOOD row composes type + multiplier + word + reused subline.
+    expect(
+      find.bySemanticsLabel(
+          RegExp('Fairy, 2 times, GOOD, resists its Dark, neutral to Rock')),
+      findsOneWidget,
+    );
+    // The #1 SAFE row's label is prefixed "Top pick." — exactly one such row.
+    expect(find.bySemanticsLabel(RegExp(r'^Top pick\. ')), findsOneWidget);
+
+    // The section header carries the header flag.
+    expect(
+      tester.getSemantics(find.text('USE THESE TYPES')),
+      isSemantics(isHeader: true),
+    );
+
+    handle.dispose();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('AC#5b/#10d: the active sort segment announces button + selected',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(_host(
+      ResultScreen(opponent: buildRockDarkOpponent(), chart: buildResultChart()),
+      await _controller(), // default safestFirst → SAFEST FIRST is active
+    ));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSemantics(find.text('SAFEST FIRST')),
+      isSemantics(isButton: true, isSelected: true),
+    );
+    expect(
+      tester.getSemantics(find.text('HARDEST HITTING')),
+      isSemantics(isButton: true, isSelected: false),
+    );
+
+    handle.dispose();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('AC#6/#10e: each sort-toggle segment stands ≥ 48dp tall',
+      (tester) async {
+    await tester.pumpWidget(_host(
+      ResultScreen(opponent: buildRockDarkOpponent(), chart: buildResultChart()),
+      await _controller(),
+    ));
+    await tester.pumpAndSettle();
+
+    for (final label in const ['SAFEST FIRST', 'HARDEST HITTING']) {
+      final segHeight = tester
+          .getSize(find
+              .ancestor(
+                  of: find.text(label), matching: find.byType(GestureDetector))
+              .first)
+          .height;
+      expect(segHeight, greaterThanOrEqualTo(48.0), reason: '$label ≥ 48dp');
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('AC#7/#10f: Result survives 2× OS text scale with no overflow',
+      (tester) async {
+    await tester.pumpWidget(_host(
+      ResultScreen(opponent: buildRockDarkOpponent(), chart: buildResultChart()),
+      await _controller(),
+      textScaler: const TextScaler.linear(2.0),
+    ));
+    await tester.pumpAndSettle();
+
+    // No RenderFlex/paragraph overflow, and the key pixel strings still render.
+    expect(tester.takeException(), isNull);
+    expect(find.text('FIGHTING'), findsOneWidget);
+    expect(find.text('4×'), findsOneWidget);
+    expect(find.text('USE THESE TYPES'), findsOneWidget);
   });
 }

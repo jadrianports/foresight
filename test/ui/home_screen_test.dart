@@ -175,7 +175,11 @@ late SettingsController _settings;
 /// strip tests reassign it before pumping.
 late RecentsController _recents;
 
-Widget _host(Widget child) => MultiProvider(
+/// Story 3.8: tapping a tile pushes a ResultScreen whose #1 pick is SAFE
+/// (Rock/Dark → Fighting), whose `TopPickHalo` pulse would block `pumpAndSettle`.
+/// The host injects `disableAnimations: true` so those pushed routes settle.
+/// [textScaler] lets the AC#10f no-clip test pump Home at 2× OS scale.
+Widget _host(Widget child, {TextScaler? textScaler}) => MultiProvider(
       providers: [
         ChangeNotifierProvider<SettingsController>.value(value: _settings),
         ChangeNotifierProvider<RecentsController>.value(value: _recents),
@@ -184,6 +188,11 @@ Widget _host(Widget child) => MultiProvider(
         theme: buildLightTheme(),
         darkTheme: buildDarkTheme(),
         home: child,
+        builder: (context, home) {
+          var data = MediaQuery.of(context).copyWith(disableAnimations: true);
+          if (textScaler != null) data = data.copyWith(textScaler: textScaler);
+          return MediaQuery(data: data, child: home!);
+        },
       ),
     );
 
@@ -478,5 +487,52 @@ void main() {
     // The grid below is still fully populated and usable.
     expect(find.byType(SpriteTile), findsNWidgets(_fakeDex.length));
     expect(tester.takeException(), isNull);
+  });
+
+  // ----- Story 3.8: tile/badge semantics + dynamic-type no-clip -----
+
+  testWidgets('AC#5a/#10d: a grid tile exposes a button role + the mon name',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _fakeDex, chart: _chart)));
+    await tester.pump();
+
+    // The tap wrapper merges the tile into ONE button node labelled by the name
+    // (the inner sprite image label is suppressed — announced once).
+    expect(
+      tester.getSemantics(find.text('Bulbasaur')),
+      isSemantics(isButton: true, label: 'Bulbasaur'),
+    );
+
+    handle.dispose();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('AC#5c/#10d: a FormBadge announces "<label> form"', (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(_host(
+      const Scaffold(body: Center(child: FormBadge('Alola'))),
+    ));
+    await tester.pump();
+
+    expect(find.bySemanticsLabel(RegExp('Alola form')), findsOneWidget);
+
+    handle.dispose();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('AC#7/#10f: Home survives 2× OS text scale with no overflow',
+      (tester) async {
+    await tester.pumpWidget(_host(
+      HomeScreen(pokemon: _fakeDex, chart: _chart),
+      textScaler: const TextScaler.linear(2.0),
+    ));
+    await tester.pump();
+
+    // No RenderFlex/paragraph overflow at max scale; wordmark + a tile name still
+    // render (pixel strings clamp-scale; body scales freely).
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('FORESIGHT'), findsOneWidget);
+    expect(find.text('Bulbasaur'), findsOneWidget);
   });
 }
