@@ -127,4 +127,59 @@ void main() {
     );
     expect(make(), isNot(equals(differentType)));
   });
+
+  // ----- Story 3.4: loadTypeChart (the bulk chart read the engine consumes) -----
+
+  // Seed just the type_chart table (mirrors prebake/schema.sql: REAL NOT NULL).
+  Future<Database> seedChart(List<Map<String, Object?>> rows) async {
+    final db = await databaseFactory.openDatabase(inMemoryDatabasePath);
+    await db.execute('CREATE TABLE type_chart ('
+        'attacking_type TEXT NOT NULL, defending_type TEXT NOT NULL, '
+        'multiplier REAL NOT NULL, PRIMARY KEY (attacking_type, defending_type))');
+    for (final r in rows) {
+      await db.insert('type_chart', r);
+    }
+    return db;
+  }
+
+  test('loadTypeChart builds a TypeChart whose lookups match the seeded cells',
+      () async {
+    final db = await seedChart([
+      {'attacking_type': 'fire', 'defending_type': 'grass', 'multiplier': 2.0},
+      {'attacking_type': 'fire', 'defending_type': 'water', 'multiplier': 0.5},
+      {'attacking_type': 'normal', 'defending_type': 'ghost', 'multiplier': 0.0},
+      // A whole-number cell stored as REAL: sqflite hands back an int for 1 —
+      // loadTypeChart must .toDouble() it so it matches the engine's double.
+      {'attacking_type': 'fire', 'defending_type': 'fire', 'multiplier': 1},
+    ]);
+    addTearDown(db.close);
+
+    final chart = await loadTypeChart(db);
+
+    expect(chart.multiplierFor('fire', 'grass'), 2.0);
+    expect(chart.multiplierFor('fire', 'water'), 0.5);
+    expect(chart.multiplierFor('normal', 'ghost'), 0.0);
+    expect(chart.multiplierFor('fire', 'fire'), 1.0);
+    expect(chart.multiplierFor('fire', 'fire'), isA<double>());
+    // Lowercase-slug keys only: a capitalized key is a different (absent) key.
+    expect(() => chart.multiplierFor('Fire', 'grass'), throwsA(anything));
+  });
+
+  test('loadTypeChart fails LOUD on a non-numeric multiplier (never defaults)',
+      () async {
+    // Force a corrupt cell past the REAL NOT NULL guard by declaring the column
+    // permissively — mirrors a corrupt DB the loader must reject, not swallow.
+    final db = await databaseFactory.openDatabase(inMemoryDatabasePath);
+    addTearDown(db.close);
+    await db.execute('CREATE TABLE type_chart ('
+        'attacking_type TEXT NOT NULL, defending_type TEXT NOT NULL, '
+        'multiplier, PRIMARY KEY (attacking_type, defending_type))');
+    await db.insert('type_chart', {
+      'attacking_type': 'fire',
+      'defending_type': 'grass',
+      'multiplier': 'not-a-number',
+    });
+
+    expect(loadTypeChart(db), throwsA(isA<StateError>()));
+  });
 }

@@ -27,5 +27,11 @@ Future<void> main() async {
   // reuse it; Provider wiring arrives with the controllers.
   final pokemon = await allPokemon(db);
 
-  runApp(ForesightApp(pokemon: pokemon));
+  // AD-6 / NFR2: the engine's rank(...) needs the whole chart in memory, so read
+  // the dense 324-row type_chart ONCE here (beside the dex) and inject the value
+  // object — no per-cell async DB call from a widget, no spinner. Covered by the
+  // same native splash as `allPokemon`.
+  final chart = await loadTypeChart(db);
+
+  runApp(ForesightApp(pokemon: pokemon, chart: chart));
 }

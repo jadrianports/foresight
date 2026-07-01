@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../data/pokemon_queries.dart';
+import '../engine/type_chart.dart';
 import '../theme/cartridge_colors.dart';
 import '../theme/cartridge_physics.dart';
 import '../theme/cartridge_typography.dart';
+import 'result_screen.dart';
 import 'widgets/form_badge.dart';
 import 'widgets/search_field.dart';
 import 'widgets/sprite_tile.dart';
@@ -20,11 +22,18 @@ import 'widgets/sprite_tile.dart';
 /// synchronously on the first frame under the native splash, and filtering is a
 /// trivial in-memory linear scan (no debounce, no async).
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.pokemon});
+  const HomeScreen({super.key, required this.pokemon, required this.chart});
 
   /// The full bundled dex (~1100 items), ordered by id, injected by `main()`.
   /// Immutable and never mutated — the filtered view is derived in `build()`.
   final List<PokemonListItem> pokemon;
+
+  /// The in-memory type chart injected from `main()`. HomeScreen only carries it
+  /// to hand to the pushed [ResultScreen] on tap (Story 3.4) — the grid itself
+  /// never consults it. Constructor injection, same as [pokemon]; NOT a
+  /// controller/Provider (an injected value object is neither shared nor
+  /// persisted state — AD-6).
+  final TypeChart chart;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -116,13 +125,31 @@ class _HomeScreenState extends State<HomeScreen> {
                           childAspectRatio: 0.82,
                         ),
                         itemCount: visible.length,
-                        itemBuilder: (context, i) => _tile(visible[i]),
+                        itemBuilder: (context, i) => _tappableTile(visible[i]),
                       ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// A grid cell made tappable (Story 3.4): a tap pushes [ResultScreen] for the
+  /// tapped item onto a plain `MaterialPageRoute` (Home → Result, back via the
+  /// app-bar chevron; NO hero animation on open — EXPERIENCE IA). We WRAP the
+  /// [_tile] output rather than add an `onTap` to [SpriteTile] (AC#9: the tile
+  /// stays a pure primitive; its doc reserves the tap for "Story 3.4 wraps it").
+  /// The chart carried from `main()` rides along so Result renders synchronously
+  /// with no DB access (AD-6/NFR2).
+  Widget _tappableTile(PokemonListItem item) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ResultScreen(opponent: item, chart: widget.chart),
+        ),
+      ),
+      child: _tile(item),
     );
   }
 

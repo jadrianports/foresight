@@ -34,8 +34,11 @@ class SpriteTile extends StatelessWidget {
           CartridgePhysics.cartridgeShadow(colors.shadow),
         ],
       ),
+      // The Column fills the grid cell's (bounded) height: Expanded flexes the
+      // sprite slot to fill the space above the name. No mainAxisSize.min — it
+      // would contradict the Expanded (which forces max) and read as a promise
+      // this tile shrink-wraps, which it doesn't.
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Expanded(
             child: Center(

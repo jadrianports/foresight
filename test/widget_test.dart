@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:foresight/app.dart';
 import 'package:foresight/data/pokemon_queries.dart';
+import 'package:foresight/engine/type_chart.dart';
 
 void main() {
   testWidgets('ForesightApp builds Home with the wordmark and injected tiles',
@@ -25,7 +26,12 @@ void main() {
       ),
     ];
 
-    await tester.pumpWidget(ForesightApp(pokemon: fakeDex));
+    // Story 3.4: ForesightApp now requires the injected type chart too. This test
+    // never taps a tile, so an empty chart is sufficient (it is only consumed by
+    // the pushed ResultScreen).
+    final chart = TypeChart(<(String, String), double>{});
+
+    await tester.pumpWidget(ForesightApp(pokemon: fakeDex, chart: chart));
     await tester.pump();
 
     // Wordmark is rich text ("FORESIGHT" + a red "." accent) — match by substring.

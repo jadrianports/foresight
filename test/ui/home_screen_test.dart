@@ -14,11 +14,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:foresight/data/pokemon_queries.dart';
+import 'package:foresight/engine/type_chart.dart';
 import 'package:foresight/theme/cartridge_theme.dart';
 import 'package:foresight/ui/home_screen.dart';
+import 'package:foresight/ui/result_screen.dart';
 import 'package:foresight/ui/widgets/form_badge.dart';
 import 'package:foresight/ui/widgets/sprite_tile.dart';
 import 'package:foresight/ui/widgets/type_chip.dart';
+
+import 'result_fixtures.dart';
+
+/// Story 3.4 threads a required `chart` through HomeScreen. The pre-3.4 tests
+/// never tap a tile, so the chart is unused there — any valid chart works; we
+/// reuse the crafted Result chart for uniformity.
+final TypeChart _chart = buildResultChart();
 
 /// A few fake items — never the real 1100-row DB (that's not a widget concern).
 final _fakeDex = <PokemonListItem>[
@@ -162,7 +171,7 @@ void main() {
 
   testWidgets('renders the wordmark and one tile per injected item',
       (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _fakeDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _fakeDex, chart: _chart)));
     await tester.pump();
 
     // Wordmark is rich text ("FORESIGHT" + a red "." accent) — match by substring.
@@ -177,7 +186,7 @@ void main() {
 
   testWidgets('AC#2/#10d: an empty query shows the full grid (3.1 intact)',
       (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex, chart: _chart)));
     await tester.pump();
 
     // No query typed → the whole injected dex renders, no no-results line.
@@ -187,7 +196,7 @@ void main() {
 
   testWidgets('AC#4/#10a: "nine" narrows to exactly the two Ninetales tiles',
       (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex, chart: _chart)));
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), 'nine');
@@ -204,7 +213,7 @@ void main() {
 
   testWidgets('AC#2/#10b: clearing the field restores the full grid',
       (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex, chart: _chart)));
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), 'nine');
@@ -220,7 +229,7 @@ void main() {
 
   testWidgets('AC#3/#10c: a no-match query shows one honest line, no grid/spinner',
       (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex, chart: _chart)));
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), 'zzzzz');
@@ -236,7 +245,7 @@ void main() {
   testWidgets(
       'Review: folded match — accent-/punctuation-free query reaches Flabébé, '
       'Mr. Mime, Type: Null', (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _foldDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _foldDex, chart: _chart)));
     await tester.pump();
 
     // No accent typed → still finds Flabébé (é folded to e).
@@ -287,7 +296,7 @@ void main() {
 
   testWidgets('AC#1/#2/#5: an alt form renders a FormBadge with up-cased text',
       (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _badgeDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _badgeDex, chart: _chart)));
     await tester.pump();
 
     // The Alolan Ninetales carries an ALOLA badge — up-cased for display, never a
@@ -298,7 +307,7 @@ void main() {
   });
 
   testWidgets('AC#1: a base-only dex renders no FormBadge', (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _fakeDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _fakeDex, chart: _chart)));
     await tester.pump();
 
     // Every _fakeDex item is a base form (formLabel: null) → zero badges.
@@ -308,7 +317,7 @@ void main() {
   testWidgets(
       'AC#3: badge count tracks the data, no whitelist — Hisui/Paldea render',
       (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _badgeDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _badgeDex, chart: _chart)));
     await tester.pump();
 
     // Badge count == number of non-null-formLabel items, and the un-named-by-the-
@@ -320,7 +329,7 @@ void main() {
 
   testWidgets('AC#8/#10d: the badge overlay never skews SpriteTile counts',
       (tester) async {
-    await tester.pumpWidget(_host(HomeScreen(pokemon: _badgeDex)));
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _badgeDex, chart: _chart)));
     await tester.pump();
 
     // One SpriteTile per item (base + 2 badged) — the Stack wraps, not adds, a
@@ -343,6 +352,30 @@ void main() {
     await tester.pump();
 
     expect(find.text('MEGA X'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  // ----- Story 3.4: tap → Result navigation -----
+
+  testWidgets('AC#1/#11b: tapping a tile pushes ResultScreen for that opponent',
+      (tester) async {
+    final opponent = buildRockDarkOpponent();
+    await tester.pumpWidget(
+      _host(HomeScreen(pokemon: [opponent], chart: buildResultChart())),
+    );
+    await tester.pump();
+
+    // Home shows the tile, not yet a Result.
+    expect(find.byType(ResultScreen), findsNothing);
+
+    await tester.tap(find.byType(SpriteTile));
+    await tester.pumpAndSettle();
+
+    // A ResultScreen for the tapped opponent is now on the stack, leading with
+    // its name and the "USE THESE TYPES" section.
+    expect(find.byType(ResultScreen), findsOneWidget);
+    expect(find.text('Tyranitar'), findsOneWidget);
+    expect(find.text('USE THESE TYPES'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
