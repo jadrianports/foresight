@@ -44,6 +44,51 @@ final _fakeDex = <PokemonListItem>[
   ),
 ];
 
+/// Story 3.2 search fixture. Crucially, BOTH Ninetales rows carry the same
+/// display `name` ('Ninetales') — the Alolan form's distinction is `formLabel`
+/// (a Story 3.3 badge), never the name (AC#4 / verified DB). So a case-
+/// insensitive `name.contains('nine')` naturally keeps both and drops the
+/// decoys. Bogus sprite paths hit the (unrelated) degrade path under test — fine.
+final _searchDex = <PokemonListItem>[
+  PokemonListItem(
+    id: 38,
+    name: 'Ninetales',
+    formLabel: null,
+    spritePath: 'assets/sprites/__nope_38__.png',
+    types: ['fire'],
+  ),
+  PokemonListItem(
+    id: 10104,
+    name: 'Ninetales',
+    formLabel: 'Alola',
+    spritePath: 'assets/sprites/__nope_10104__.png',
+    types: ['ice', 'fairy'],
+  ),
+  PokemonListItem(
+    id: 1,
+    name: 'Bulbasaur',
+    formLabel: null,
+    spritePath: 'assets/sprites/__nope_1__.png',
+    types: ['grass', 'poison'],
+  ),
+  PokemonListItem(
+    id: 25,
+    name: 'Pikachu',
+    formLabel: null,
+    spritePath: 'assets/sprites/__nope_25__.png',
+    types: ['electric'],
+  ),
+  PokemonListItem(
+    id: 6,
+    name: 'Charizard',
+    formLabel: null,
+    spritePath: 'assets/sprites/__nope_6__.png',
+    types: ['fire', 'flying'],
+  ),
+];
+
+const _noResultsCopy = 'No Pokémon match that. Check the spelling?';
+
 /// Wrap a widget in the Cartridge theme so the CartridgeColors extension resolves.
 Widget _host(Widget child) => MaterialApp(
       theme: buildLightTheme(),
@@ -68,6 +113,66 @@ void main() {
     for (final item in _fakeDex) {
       expect(find.text(item.name), findsOneWidget);
     }
+  });
+
+  // ----- Story 3.2: live-search filter -----
+
+  testWidgets('AC#2/#10d: an empty query shows the full grid (3.1 intact)',
+      (tester) async {
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex)));
+    await tester.pump();
+
+    // No query typed → the whole injected dex renders, no no-results line.
+    expect(find.byType(SpriteTile), findsNWidgets(_searchDex.length));
+    expect(find.text(_noResultsCopy), findsNothing);
+  });
+
+  testWidgets('AC#4/#10a: "nine" narrows to exactly the two Ninetales tiles',
+      (tester) async {
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex)));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'nine');
+    await tester.pump();
+
+    // Both Ninetales rows share name 'Ninetales' → two tiles; decoys hidden.
+    expect(find.byType(SpriteTile), findsNWidgets(2));
+    expect(find.text('Ninetales'), findsNWidgets(2));
+    expect(find.text('Bulbasaur'), findsNothing);
+    expect(find.text('Pikachu'), findsNothing);
+    expect(find.text('Charizard'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('AC#2/#10b: clearing the field restores the full grid',
+      (tester) async {
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex)));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'nine');
+    await tester.pump();
+    expect(find.byType(SpriteTile), findsNWidgets(2));
+
+    // Delete back to empty → the un-filtered full-dex grid returns (AC#2).
+    await tester.enterText(find.byType(TextField), '');
+    await tester.pump();
+    expect(find.byType(SpriteTile), findsNWidgets(_searchDex.length));
+    expect(find.text(_noResultsCopy), findsNothing);
+  });
+
+  testWidgets('AC#3/#10c: a no-match query shows one honest line, no grid/spinner',
+      (tester) async {
+    await tester.pumpWidget(_host(HomeScreen(pokemon: _searchDex)));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'zzzzz');
+    await tester.pump();
+
+    // The grid is replaced by the exact copy — no spinner, no tiles, no throw.
+    expect(find.text(_noResultsCopy), findsOneWidget);
+    expect(find.byType(SpriteTile), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('AC#4 degrade: a missing sprite shows name + type chips, no throw',
